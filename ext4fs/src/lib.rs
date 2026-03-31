@@ -3,3 +3,4 @@
 pub mod error;
 pub mod ondisk;
 pub mod block;
+pub mod inode;
