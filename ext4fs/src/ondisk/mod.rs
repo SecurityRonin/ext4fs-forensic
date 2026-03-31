@@ -11,3 +11,6 @@ pub use inode::*;
 
 pub mod extent;
 pub use extent::*;
+
+pub mod dir_entry;
+pub use dir_entry::*;
