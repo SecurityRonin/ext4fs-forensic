@@ -13,7 +13,9 @@ pub struct Xattr {
     pub value: Vec<u8>,
 }
 
-/// Read all extended attributes for an inode.
+/// Read block-stored extended attributes for an inode (from `i_file_acl`).
+///
+/// Inline xattrs stored in the inode body are not yet supported.
 pub fn read_xattrs<R: Read + Seek>(
     reader: &mut InodeReader<R>,
     ino: u64,

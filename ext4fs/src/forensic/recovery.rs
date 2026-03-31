@@ -64,6 +64,7 @@ pub fn recover_file<R: Read + Seek>(
     let block_size = reader.block_reader().block_size() as u64;
     let mut data = Vec::with_capacity(expected_size as usize);
     let mut overwritten_ranges = Vec::new();
+    let mut overwritten_bytes: u64 = 0;
 
     for mapping in &mappings {
         for i in 0..mapping.length {
@@ -78,6 +79,7 @@ pub fn recover_file<R: Read + Seek>(
                 let remaining = (expected_size as usize).saturating_sub(data.len());
                 let fill = remaining.min(block_size as usize);
                 data.extend(std::iter::repeat(0u8).take(fill));
+                overwritten_bytes += fill as u64;
             } else {
                 match reader.block_reader_mut().read_block(block) {
                     Ok(block_data) => {
@@ -89,6 +91,7 @@ pub fn recover_file<R: Read + Seek>(
                         let remaining = (expected_size as usize).saturating_sub(data.len());
                         let fill = remaining.min(block_size as usize);
                         data.extend(std::iter::repeat(0u8).take(fill));
+                        overwritten_bytes += fill as u64;
                     }
                 }
             }
@@ -98,13 +101,7 @@ pub fn recover_file<R: Read + Seek>(
     }
 
     data.truncate(expected_size as usize);
-    let recovered_size = data.iter().enumerate().filter(|(i, _)| {
-        !overwritten_ranges.iter().any(|r| {
-            let start = r.start as usize;
-            let end = start + r.length as usize;
-            *i >= start && *i < end
-        })
-    }).count() as u64;
+    let recovered_size = expected_size.saturating_sub(overwritten_bytes);
 
     Ok(RecoveryResult {
         data,

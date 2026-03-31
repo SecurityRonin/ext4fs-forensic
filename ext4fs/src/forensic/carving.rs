@@ -29,7 +29,7 @@ pub fn unallocated_blocks<R: Read + Seek>(
         let base_block = g as u64 * bpg;
 
         let mut run_start: Option<u64> = None;
-        let blocks_in_group = bpg.min(blocks_count - base_block);
+        let blocks_in_group = bpg.min(blocks_count.saturating_sub(base_block));
 
         for bit in 0..blocks_in_group as usize {
             let byte = bit / 8;
