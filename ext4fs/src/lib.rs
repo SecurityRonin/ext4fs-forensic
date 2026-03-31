@@ -66,7 +66,7 @@ impl<R: Read + Seek> Ext4Fs<R> {
 
     /// List directory entries by path.
     pub fn read_dir(&mut self, path: &str) -> Result<Vec<DirEntry>> {
-        let ino = if path == "/" { 2 } else { self.dir_reader.resolve_path(path)? };
+        let ino = self.dir_reader.resolve_path(path)?;
         self.dir_reader.read_dir(ino)
     }
 
