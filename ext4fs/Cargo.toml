@@ -1,0 +1,10 @@
+[package]
+name = "ext4fs"
+version = "0.1.0"
+edition = "2021"
+description = "Forensic-grade ext4 filesystem parser"
+license = "MIT"
+
+[dependencies]
+bitflags = "2"
+crc = "3"

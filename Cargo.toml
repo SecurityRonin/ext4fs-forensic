@@ -1,0 +1,3 @@
+[workspace]
+members = ["ext4fs"]
+resolver = "2"
