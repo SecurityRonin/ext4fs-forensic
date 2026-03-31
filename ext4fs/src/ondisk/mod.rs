@@ -14,3 +14,6 @@ pub use extent::*;
 
 pub mod dir_entry;
 pub use dir_entry::*;
+
+pub mod journal;
+pub use journal::*;
