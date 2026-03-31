@@ -2,6 +2,7 @@
 
 use crate::error::{Ext4Error, Result};
 use bitflags::bitflags;
+use crc::{Algorithm, Crc};
 
 // ---------------------------------------------------------------------------
 // Helper functions for little-endian reads
@@ -68,6 +69,27 @@ bitflags! {
         const ORPHAN_PRESENT = 0x8000;
     }
 }
+
+// ---------------------------------------------------------------------------
+// CRC32C algorithm matching Linux kernel's crc32c_le()
+// ---------------------------------------------------------------------------
+
+/// CRC-32C (Castagnoli) matching the Linux kernel's `crc32c_le()` function.
+///
+/// The standard CRC-32/ISCSI algorithm has `xorout = 0xFFFFFFFF`, meaning
+/// the finalized result is XORed with all-ones.  The Linux kernel's CRC32C
+/// implementation does **not** apply this final XOR — it returns the raw CRC
+/// register state.  We define a custom algorithm with `xorout = 0` to match.
+const EXT4_CRC32C: Algorithm<u32> = Algorithm {
+    width: 32,
+    poly: 0x1EDC_6F41,
+    init: 0xFFFF_FFFF,
+    refin: true,
+    refout: true,
+    xorout: 0x0000_0000, // kernel does NOT apply final XOR
+    check: 0x0, // not used
+    residue: 0x0, // not used
+};
 
 // ---------------------------------------------------------------------------
 // Superblock
@@ -296,6 +318,34 @@ impl Superblock {
             .contains(IncompatFeatures::EXTENTS)
     }
 
+    /// Verify the superblock CRC32C checksum.
+    ///
+    /// The checksum covers bytes 0..0x3FC (everything except the 4-byte
+    /// checksum field itself at offset 0x3FC).
+    ///
+    /// The superblock checksum is special: unlike other ext4 metadata, it is
+    /// computed with the default CRC32C initial value (~0 / 0xFFFFFFFF) rather
+    /// than the UUID-derived or stored seed.  This is because the superblock
+    /// itself contains the UUID used to derive seeds for other structures.
+    ///
+    /// The Linux kernel's `crc32c_le()` does NOT apply the final XOR that the
+    /// standard CRC-32/ISCSI algorithm specifies (xorout=0xFFFFFFFF).  We use
+    /// a custom algorithm definition with `xorout=0` to match kernel behavior.
+    pub fn verify_checksum(&self, raw_buf: &[u8]) -> bool {
+        if !self.has_metadata_csum() || raw_buf.len() < 0x400 {
+            return true; // no checksum to verify
+        }
+
+        let crc32c = Crc::<u32>::new(&EXT4_CRC32C);
+
+        // Superblock uses default initial value (~0), not the UUID/seed.
+        let mut digest = crc32c.digest();
+        digest.update(&raw_buf[..0x3FC]);
+        let computed = digest.finalize();
+
+        computed == self.checksum
+    }
+
     /// Whether inline data is supported.
     pub fn has_inline_data(&self) -> bool {
         self.feature_incompat
@@ -469,6 +519,20 @@ mod tests {
         assert_eq!(sb.feature_compat, compat);
         assert_eq!(sb.feature_incompat, incompat);
         assert_eq!(sb.feature_ro_compat, ro);
+    }
+
+    #[test]
+    fn verify_superblock_checksum() {
+        let img_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/minimal.img");
+        if !std::path::Path::new(img_path).exists() {
+            eprintln!("skip: minimal.img not found");
+            return;
+        }
+        let data = std::fs::read(img_path).unwrap();
+        let sb = Superblock::parse(&data[1024..2048]).unwrap();
+        if sb.has_metadata_csum() {
+            assert!(sb.verify_checksum(&data[1024..2048]));
+        }
     }
 
     #[test]
