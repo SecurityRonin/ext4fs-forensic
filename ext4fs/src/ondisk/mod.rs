@@ -8,3 +8,6 @@ pub use group_desc::*;
 
 pub mod inode;
 pub use inode::*;
+
+pub mod extent;
+pub use extent::*;
