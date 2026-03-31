@@ -17,3 +17,6 @@ pub use dir_entry::*;
 
 pub mod journal;
 pub use journal::*;
+
+pub mod xattr;
+pub use xattr::*;
