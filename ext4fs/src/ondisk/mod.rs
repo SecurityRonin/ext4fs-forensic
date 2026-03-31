@@ -2,3 +2,6 @@
 
 pub mod superblock;
 pub use superblock::*;
+
+pub mod group_desc;
+pub use group_desc::*;
