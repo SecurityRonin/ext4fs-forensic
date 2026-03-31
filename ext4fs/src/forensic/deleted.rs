@@ -23,15 +23,15 @@ pub struct DeletedInode {
     pub recoverability: f64,
 }
 
-/// Scan all inodes for deletion markers.
+/// Scan all inodes for deletion markers (`dtime != 0`).
 ///
-/// A deleted inode has: `dtime != 0`, or `links_count == 0` with non-zero mode.
-/// Empty inode slots (mode == 0 and dtime == 0) are skipped since they were
-/// never allocated rather than deleted.
+/// Returns only inodes that were intentionally deleted — the kernel sets
+/// `dtime` when a file is removed. Orphan inodes (unlinked but never fully
+/// deleted, e.g. from a crash) are **not** included; use [`find_orphan_inodes`]
+/// for those.
 ///
-/// For each deleted inode found, the function estimates recoverability by
-/// checking what fraction of the file's data blocks are still unallocated
-/// in the block bitmap.
+/// For each deleted inode, estimates recoverability by checking what fraction
+/// of the file's data blocks are still unallocated in the block bitmap.
 pub fn find_deleted_inodes<R: Read + Seek>(
     reader: &mut InodeReader<R>,
 ) -> Result<Vec<DeletedInode>> {
@@ -42,14 +42,7 @@ pub fn find_deleted_inodes<R: Read + Seek>(
         if !inode.is_deleted() {
             continue;
         }
-        // Skip truly empty inodes (mode == 0 and no dtime) — these are
-        // unused slots, not deleted files. iter_all_inodes already filters
-        // most of these, but be defensive.
-        if inode.mode == 0 && inode.dtime == 0 {
-            continue;
-        }
 
-        // Estimate recoverability by checking if data blocks are still free
         let recoverability = estimate_recoverability(reader, *ino, inode)?;
 
         deleted.push(DeletedInode {
@@ -69,6 +62,43 @@ pub fn find_deleted_inodes<R: Read + Seek>(
     }
 
     Ok(deleted)
+}
+
+/// Scan all inodes for orphans (`links_count == 0`, `dtime == 0`, `mode != 0`).
+///
+/// Orphan inodes result from unclean shutdowns: a file was unlinked while
+/// still open, or the system crashed before the kernel could set `dtime`.
+/// These are forensically distinct from intentionally deleted files.
+pub fn find_orphan_inodes<R: Read + Seek>(
+    reader: &mut InodeReader<R>,
+) -> Result<Vec<DeletedInode>> {
+    let all_inodes = reader.iter_all_inodes()?;
+    let mut orphans = Vec::new();
+
+    for (ino, inode) in &all_inodes {
+        if !inode.is_orphan() {
+            continue;
+        }
+
+        let recoverability = estimate_recoverability(reader, *ino, inode)?;
+
+        orphans.push(DeletedInode {
+            ino: *ino,
+            file_type: inode.file_type(),
+            mode: inode.mode,
+            uid: inode.uid,
+            gid: inode.gid,
+            size: inode.size,
+            atime: inode.atime,
+            mtime: inode.mtime,
+            ctime: inode.ctime,
+            crtime: inode.crtime,
+            dtime: inode.dtime,
+            recoverability,
+        });
+    }
+
+    Ok(orphans)
 }
 
 /// Estimate what fraction of a deleted file's blocks are still unallocated.
@@ -142,16 +172,31 @@ mod tests {
     }
 
     #[test]
-    fn deleted_inode_detection_logic() {
-        // Test the detection logic with a synthetic inode
+    fn deleted_inode_has_dtime_set() {
         use crate::ondisk::Inode;
         let mut buf = vec![0u8; 256];
         buf[0x00] = 0x80; buf[0x01] = 0x81; // regular file, mode 0600
         buf[0x04] = 100; // size = 100
-        buf[0x14] = 0x01; // dtime != 0 (low byte)
+        buf[0x14] = 0x01; // dtime = 1 (deletion time set)
         buf[0x1A] = 0; // links_count = 0
         let inode = Inode::parse(&buf, 256).unwrap();
-        assert!(inode.is_deleted());
+        assert!(inode.is_deleted(), "dtime != 0 means deleted");
+        assert!(!inode.is_orphan(), "dtime set means not orphan");
         assert_eq!(inode.dtime, 1);
+    }
+
+    #[test]
+    fn orphan_inode_has_no_dtime() {
+        // Orphan: links_count == 0, dtime == 0, mode != 0
+        // This is what happens during a crash mid-deletion or unlinked-but-open files
+        use crate::ondisk::Inode;
+        let mut buf = vec![0u8; 256];
+        buf[0x00] = 0x80; buf[0x01] = 0x81; // regular file, mode 0600
+        buf[0x04] = 100; // size = 100
+        // dtime stays 0 (not set)
+        buf[0x1A] = 0; // links_count = 0
+        let inode = Inode::parse(&buf, 256).unwrap();
+        assert!(!inode.is_deleted(), "no dtime means not deleted");
+        assert!(inode.is_orphan(), "links_count=0, dtime=0, mode!=0 is orphan");
     }
 }

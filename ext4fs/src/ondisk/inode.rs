@@ -303,9 +303,29 @@ impl Inode {
         self.flags.contains(InodeFlags::INDEX)
     }
 
-    /// True if the inode has been deleted (`dtime` != 0 or `links_count` == 0).
+    /// True if the inode has been deleted (`dtime` != 0).
+    ///
+    /// This is the authoritative deletion marker in ext4. When the kernel
+    /// deletes a file, it sets `dtime` to the current time. An inode with
+    /// `links_count == 0` but `dtime == 0` is an **orphan** (unlinked while
+    /// still open, or system crashed mid-deletion) — a forensically distinct
+    /// state. Use [`is_orphan`] to detect those.
     pub fn is_deleted(&self) -> bool {
-        self.dtime != 0 || self.links_count == 0
+        self.dtime != 0
+    }
+
+    /// True if the inode is an orphan: unlinked (`links_count == 0`) but
+    /// never fully deleted (`dtime == 0`) and still has content (`mode != 0`).
+    ///
+    /// Orphans typically result from:
+    /// - A file unlinked while still held open by a process (common temp file pattern)
+    /// - A system crash during file deletion before `dtime` was written
+    /// - An unclean shutdown leaving inodes in the orphan list
+    ///
+    /// Forensically distinct from deleted inodes — orphans were not
+    /// intentionally removed by the user/process at the time of imaging.
+    pub fn is_orphan(&self) -> bool {
+        self.links_count == 0 && self.dtime == 0 && self.mode != 0
     }
 }
 

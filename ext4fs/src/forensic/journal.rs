@@ -98,6 +98,8 @@ pub fn parse_journal<R: Read + Seek>(reader: &mut InodeReader<R>) -> Result<Jour
             Ok(header) => match header.block_type {
                 JournalBlockType::Descriptor => {
                     pending_tags.clear();
+                    current_mappings.clear();
+                    current_revoked.clear();
                     let mut tag_offset = 12;
                     loop {
                         if tag_offset + 16 > block_data.len() {
@@ -109,6 +111,9 @@ pub fn parse_journal<R: Read + Seek>(reader: &mut InodeReader<R>) -> Result<Jour
                         );
                         pending_tags.push(tag.blocknr);
                         let is_last = tag.last_tag;
+                        if tag.tag_size == 0 {
+                            break;
+                        }
                         tag_offset += tag.tag_size;
                         if is_last {
                             break;
@@ -127,18 +132,22 @@ pub fn parse_journal<R: Read + Seek>(reader: &mut InodeReader<R>) -> Result<Jour
                     continue;
                 }
                 JournalBlockType::Commit => {
-                    let commit = JournalCommit::parse(block_data).unwrap_or(JournalCommit {
-                        sequence: header.sequence,
-                        commit_seconds: 0,
-                        commit_nanoseconds: 0,
-                    });
-                    transactions.push(Transaction {
-                        sequence: commit.sequence,
-                        commit_seconds: commit.commit_seconds,
-                        commit_nanoseconds: commit.commit_nanoseconds,
-                        mappings: std::mem::take(&mut current_mappings),
-                        revoked_blocks: std::mem::take(&mut current_revoked),
-                    });
+                    // Only record the transaction if we can parse the commit
+                    // block. Fabricating an epoch timestamp on parse failure
+                    // would be forensically misleading.
+                    if let Ok(commit) = JournalCommit::parse(block_data) {
+                        transactions.push(Transaction {
+                            sequence: commit.sequence,
+                            commit_seconds: commit.commit_seconds,
+                            commit_nanoseconds: commit.commit_nanoseconds,
+                            mappings: std::mem::take(&mut current_mappings),
+                            revoked_blocks: std::mem::take(&mut current_revoked),
+                        });
+                    } else {
+                        // Discard the uncommitted mappings/revokes
+                        current_mappings.clear();
+                        current_revoked.clear();
+                    }
                 }
                 JournalBlockType::Revoke => {
                     if let Ok(revoke) = JournalRevoke::parse(block_data, is_64bit) {
