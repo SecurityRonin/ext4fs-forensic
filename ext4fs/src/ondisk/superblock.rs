@@ -80,7 +80,7 @@ bitflags! {
 /// the finalized result is XORed with all-ones.  The Linux kernel's CRC32C
 /// implementation does **not** apply this final XOR — it returns the raw CRC
 /// register state.  We define a custom algorithm with `xorout = 0` to match.
-const EXT4_CRC32C: Algorithm<u32> = Algorithm {
+pub(crate) const EXT4_CRC32C: Algorithm<u32> = Algorithm {
     width: 32,
     poly: 0x1EDC_6F41,
     init: 0xFFFF_FFFF,
@@ -332,8 +332,11 @@ impl Superblock {
     /// standard CRC-32/ISCSI algorithm specifies (xorout=0xFFFFFFFF).  We use
     /// a custom algorithm definition with `xorout=0` to match kernel behavior.
     pub fn verify_checksum(&self, raw_buf: &[u8]) -> bool {
-        if !self.has_metadata_csum() || raw_buf.len() < 0x400 {
-            return true; // no checksum to verify
+        if !self.has_metadata_csum() {
+            return true; // feature not enabled, nothing to verify
+        }
+        if raw_buf.len() < 0x400 {
+            return false; // buffer too short to contain checksum field
         }
 
         let crc32c = Crc::<u32>::new(&EXT4_CRC32C);
