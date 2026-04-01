@@ -132,4 +132,57 @@ mod tests {
             assert!(range.length > 0);
         }
     }
+
+    fn open_forensic() -> Option<InodeReader<Cursor<Vec<u8>>>> {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/forensic.img");
+        let data = std::fs::read(path).ok()?;
+        let br = BlockReader::open(Cursor::new(data)).ok()?;
+        Some(InodeReader::new(br))
+    }
+
+    #[test]
+    fn forensic_image_has_unallocated_blocks() {
+        let mut reader = match open_forensic() {
+            Some(r) => r,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let ranges = unallocated_blocks(&mut reader).unwrap();
+        assert!(!ranges.is_empty(), "expected unallocated block ranges");
+        let total_free: u64 = ranges.iter().map(|r| r.length).sum();
+        assert!(total_free > 100, "expected > 100 free blocks in 32MB image, got {}", total_free);
+    }
+
+    #[test]
+    fn read_unallocated_returns_data() {
+        let mut reader = match open_forensic() {
+            Some(r) => r,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let ranges = unallocated_blocks(&mut reader).unwrap();
+        assert!(!ranges.is_empty(), "need at least one unallocated range");
+        let block_size = reader.block_reader().superblock().block_size as u64;
+        let first = &ranges[0];
+        let data = read_unallocated(&mut reader, first).unwrap();
+        assert_eq!(
+            data.len() as u64,
+            first.length * block_size,
+            "data length should equal range.length * block_size"
+        );
+    }
+
+    #[test]
+    fn find_extent_signatures_runs_without_error() {
+        let mut reader = match open_forensic() {
+            Some(r) => r,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let ranges = unallocated_blocks(&mut reader).unwrap();
+        let carved = find_extent_signatures(&mut reader, &ranges).unwrap();
+        for c in &carved {
+            assert_eq!(
+                c.offset_in_block % 12, 0,
+                "offset {} is not 12-byte aligned", c.offset_in_block
+            );
+        }
+    }
 }
