@@ -1,7 +1,9 @@
 #![forbid(unsafe_code)]
 
 use crate::error::{Ext4Error, Result};
+use crate::ondisk::superblock::EXT4_CRC32C;
 use bitflags::bitflags;
+use crc::Crc;
 
 // ---------------------------------------------------------------------------
 // Helper functions for little-endian reads
@@ -113,6 +115,50 @@ impl GroupDescriptor {
             checksum,
         })
     }
+
+    /// Verify the group descriptor CRC32C checksum.
+    ///
+    /// For `METADATA_CSUM` filesystems:
+    ///   seed = checksum_seed if nonzero, else crc32c(uuid)
+    ///   crc = crc32c(seed, le32(group_number))
+    ///   crc = crc32c(crc, descriptor_bytes with checksum field zeroed)
+    ///   stored checksum = low 16 bits of crc32c result
+    ///
+    /// The checksum field is 2 bytes at offset 0x1E.
+    pub fn verify_checksum(
+        &self,
+        raw_buf: &[u8],
+        uuid: &[u8; 16],
+        group: u32,
+        csum_seed: u32,
+    ) -> bool {
+        let crc32c = Crc::<u32>::new(&EXT4_CRC32C);
+
+        // Seed: either stored checksum_seed or CRC32C(UUID)
+        let seed = if csum_seed != 0 {
+            csum_seed
+        } else {
+            let mut d = crc32c.digest();
+            d.update(uuid);
+            d.finalize()
+        };
+
+        // NOTE: Crc::digest_with_initial() applies reverse_bits() to
+        // the initial value (because refin=true), so to set the raw CRC
+        // register to `seed` we must pass seed.reverse_bits().
+        let mut digest = crc32c.digest_with_initial(seed.reverse_bits());
+        digest.update(&group.to_le_bytes());
+
+        // Hash descriptor bytes, skipping the 2-byte checksum at offset 0x1E
+        digest.update(&raw_buf[..0x1E]);
+        if raw_buf.len() > 0x20 {
+            digest.update(&[0u8; 2]); // zero placeholder for checksum field
+            digest.update(&raw_buf[0x20..]);
+        }
+
+        let computed = digest.finalize();
+        (computed & 0xFFFF) as u16 == self.checksum
+    }
 }
 
 #[cfg(test)]
@@ -159,5 +205,29 @@ mod tests {
         let buf = vec![0u8; 10];
         let err = GroupDescriptor::parse(&buf, 32).unwrap_err();
         assert!(matches!(err, crate::error::Ext4Error::TooShort { .. }));
+    }
+
+    #[test]
+    fn verify_group_descriptor_checksum_on_forensic_img() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/forensic.img");
+        let data = match std::fs::read(path) {
+            Ok(d) => d,
+            Err(_) => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        use crate::ondisk::superblock::Superblock;
+        let sb = Superblock::parse(&data[1024..]).unwrap();
+        assert!(sb.has_metadata_csum(), "forensic.img should have metadata_csum");
+
+        let desc_size = sb.desc_size;
+        // GDT starts at block 1 for 4096-byte block size (block 0 is boot+superblock)
+        let gdt_offset = sb.block_size as usize;
+
+        // Verify first group descriptor
+        let gd_buf = &data[gdt_offset..gdt_offset + desc_size as usize];
+        let gd = GroupDescriptor::parse(gd_buf, desc_size).unwrap();
+        assert!(
+            gd.verify_checksum(gd_buf, &sb.uuid, 0, sb.checksum_seed),
+            "group 0 descriptor checksum should verify"
+        );
     }
 }
