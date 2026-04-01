@@ -79,4 +79,46 @@ mod tests {
         let xattrs = read_xattrs(&mut reader, 2).unwrap();
         let _ = xattrs;
     }
+
+    fn open_forensic() -> Option<InodeReader<Cursor<Vec<u8>>>> {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/forensic.img");
+        let data = std::fs::read(path).ok()?;
+        let br = BlockReader::open(Cursor::new(data)).ok()?;
+        Some(InodeReader::new(br))
+    }
+
+    #[test]
+    fn read_xattrs_for_hello_txt() {
+        let mut reader = match open_forensic() {
+            Some(r) => r,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+
+        // Read the inode to inspect file_acl
+        let inode = reader.read_inode(12).unwrap();
+        eprintln!("hello.txt (ino 12) file_acl = {}", inode.file_acl);
+
+        let xattrs = read_xattrs(&mut reader, 12).unwrap();
+        eprintln!("xattrs found: {}", xattrs.len());
+        for xa in &xattrs {
+            eprintln!(
+                "  namespace={:?} name={:?} value={:?}",
+                xa.namespace,
+                String::from_utf8_lossy(&xa.name),
+                String::from_utf8_lossy(&xa.value),
+            );
+        }
+        // Don't assert specific xattr names yet — just assert no error occurred.
+    }
+
+    #[test]
+    fn read_xattrs_for_root_inode() {
+        let mut reader = match open_forensic() {
+            Some(r) => r,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+
+        let xattrs = read_xattrs(&mut reader, 2).unwrap();
+        let _ = xattrs;
+    }
 }
