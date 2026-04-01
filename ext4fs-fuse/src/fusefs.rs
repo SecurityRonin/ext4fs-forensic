@@ -2,6 +2,7 @@
 
 use crate::inode_map::*;
 use crate::session::Session;
+use ext4fs::forensic;
 use ext4fs::ondisk::{DirEntryType, FileType as Ext4FileType, Inode, Timestamp};
 use ext4fs::Ext4Fs;
 use fuser::{
@@ -26,11 +27,48 @@ const VIRTUAL_DIRS: &[(u64, &str)] = &[
     (FUSE_SESSION_INO, "session"),
 ];
 
+/// Cached entry for a deleted file visible in the `deleted/` virtual directory.
+struct DeletedEntry {
+    ext4_ino: u64,
+    name: String,
+    size: u64,
+    data: Vec<u8>,
+}
+
+/// Cached entry for a journal transaction visible in the `journal/` virtual directory.
+struct JournalTxnEntry {
+    sequence: u64,
+    name: String,
+}
+
+/// Cached metadata files for the `metadata/` virtual directory.
+struct MetadataCache {
+    superblock_json: Vec<u8>,
+    timeline_jsonl: Vec<u8>,
+}
+
+/// Cached entry for an unallocated block range visible in the `unallocated/` virtual directory.
+struct UnallocatedEntry {
+    #[allow(dead_code)]
+    range_id: u64,
+    name: String,
+    start: u64,
+    length: u64,
+}
+
 pub struct Ext4FuseFs {
     fs: RefCell<Ext4Fs<File>>,
     session: RefCell<Option<Session>>,
     /// Counter for allocating new overlay inode numbers (for created files).
     overlay_ino_counter: RefCell<u64>,
+    /// Lazy-loaded cache for the deleted/ virtual directory.
+    deleted_cache: RefCell<Option<Vec<DeletedEntry>>>,
+    /// Lazy-loaded cache for the journal/ virtual directory.
+    journal_cache: RefCell<Option<Vec<JournalTxnEntry>>>,
+    /// Lazy-loaded cache for the metadata/ virtual directory.
+    metadata_cache: RefCell<Option<MetadataCache>>,
+    /// Lazy-loaded cache for the unallocated/ virtual directory.
+    unallocated_cache: RefCell<Option<Vec<UnallocatedEntry>>>,
 }
 
 impl Ext4FuseFs {
@@ -39,6 +77,10 @@ impl Ext4FuseFs {
             fs: RefCell::new(fs),
             session: RefCell::new(session),
             overlay_ino_counter: RefCell::new(1),
+            deleted_cache: RefCell::new(None),
+            journal_cache: RefCell::new(None),
+            metadata_cache: RefCell::new(None),
+            unallocated_cache: RefCell::new(None),
         }
     }
 
@@ -109,6 +151,159 @@ impl Ext4FuseFs {
             Some(s) => s.overlay.deleted.contains(&ext4_ino),
             None => false,
         }
+    }
+
+    /// Ensure the deleted/ cache is populated.
+    fn ensure_deleted_cache(&self) {
+        if self.deleted_cache.borrow().is_some() {
+            return;
+        }
+        let mut fs = self.fs.borrow_mut();
+        let deleted_inodes = fs.deleted_inodes().unwrap_or_default();
+        let mut entries = Vec::new();
+        for di in &deleted_inodes {
+            let name = format!("{}_unknown", di.ino);
+            let result = fs.recover_file(di.ino);
+            let (size, data) = match result {
+                Ok(r) => (r.data.len() as u64, r.data),
+                Err(_) => (0, Vec::new()),
+            };
+            entries.push(DeletedEntry {
+                ext4_ino: di.ino,
+                name,
+                size,
+                data,
+            });
+        }
+        *self.deleted_cache.borrow_mut() = Some(entries);
+    }
+
+    /// Ensure the journal/ cache is populated.
+    fn ensure_journal_cache(&self) {
+        if self.journal_cache.borrow().is_some() {
+            return;
+        }
+        let mut fs = self.fs.borrow_mut();
+        let entries = match fs.journal() {
+            Ok(journal) => journal
+                .transactions
+                .iter()
+                .map(|txn| JournalTxnEntry {
+                    sequence: txn.sequence as u64,
+                    name: format!("txn_{}", txn.sequence),
+                })
+                .collect(),
+            Err(_) => Vec::new(),
+        };
+        *self.journal_cache.borrow_mut() = Some(entries);
+    }
+
+    /// Ensure the metadata/ cache is populated.
+    fn ensure_metadata_cache(&self) {
+        if self.metadata_cache.borrow().is_some() {
+            return;
+        }
+        let mut fs = self.fs.borrow_mut();
+
+        // Build superblock.json
+        let sb = fs.superblock();
+        let uuid_str = sb.uuid_string();
+        let label = sb.label().to_string();
+        let block_size = sb.block_size;
+        let blocks_count = sb.blocks_count;
+        let inodes_count = sb.inodes_count;
+        let free_blocks = sb.free_blocks;
+        let free_inodes = sb.free_inodes;
+        let feature_compat = format!("{:?}", sb.feature_compat);
+        let feature_incompat = format!("{:?}", sb.feature_incompat);
+        let feature_ro_compat = format!("{:?}", sb.feature_ro_compat);
+        let mount_time = sb.mount_time;
+        let write_time = sb.write_time;
+        let mkfs_time = sb.mkfs_time;
+        let rev_level = sb.rev_level;
+        let inode_size = sb.inode_size;
+        let state = sb.state;
+
+        let sb_json = serde_json::json!({
+            "label": label,
+            "uuid": uuid_str,
+            "block_size": block_size,
+            "blocks_count": blocks_count,
+            "inodes_count": inodes_count,
+            "free_blocks": free_blocks,
+            "free_inodes": free_inodes,
+            "feature_compat": feature_compat,
+            "feature_incompat": feature_incompat,
+            "feature_ro_compat": feature_ro_compat,
+            "mount_time": mount_time,
+            "write_time": write_time,
+            "mkfs_time": mkfs_time,
+            "rev_level": rev_level,
+            "inode_size": inode_size,
+            "state": state,
+        });
+        let superblock_json = serde_json::to_string_pretty(&sb_json)
+            .unwrap_or_default()
+            .into_bytes();
+
+        // Build timeline.jsonl
+        let timeline_jsonl = match fs.timeline() {
+            Ok(events) => {
+                let mut buf = Vec::new();
+                for event in &events {
+                    let event_type = match event.event_type {
+                        forensic::EventType::Created => "Created",
+                        forensic::EventType::Modified => "Modified",
+                        forensic::EventType::Accessed => "Accessed",
+                        forensic::EventType::Changed => "Changed",
+                        forensic::EventType::Deleted => "Deleted",
+                        forensic::EventType::Mounted => "Mounted",
+                    };
+                    let line = serde_json::json!({
+                        "timestamp_secs": event.timestamp.seconds,
+                        "timestamp_nsecs": event.timestamp.nanoseconds,
+                        "event_type": event_type,
+                        "inode": event.inode,
+                        "path": event.path,
+                        "size": event.size,
+                        "uid": event.uid,
+                        "gid": event.gid,
+                    });
+                    let line_str = serde_json::to_string(&line).unwrap_or_default();
+                    buf.extend_from_slice(line_str.as_bytes());
+                    buf.push(b'\n');
+                }
+                buf
+            }
+            Err(_) => Vec::new(),
+        };
+
+        *self.metadata_cache.borrow_mut() = Some(MetadataCache {
+            superblock_json,
+            timeline_jsonl,
+        });
+    }
+
+    /// Ensure the unallocated/ cache is populated.
+    fn ensure_unallocated_cache(&self) {
+        if self.unallocated_cache.borrow().is_some() {
+            return;
+        }
+        let mut fs = self.fs.borrow_mut();
+        let entries = match fs.unallocated_blocks() {
+            Ok(ranges) => ranges
+                .iter()
+                .enumerate()
+                .map(|(i, r)| UnallocatedEntry {
+                    range_id: i as u64,
+                    name: format!("blocks_{}-{}.raw", r.start, r.start + r.length),
+                    start: r.start,
+                    length: r.length,
+                })
+                .collect(),
+            Err(_) => Vec::new(),
+        };
+        *self.unallocated_cache.borrow_mut() = Some(entries);
     }
 
     /// Find a created overlay entry by parent_ino and name.
@@ -195,6 +390,27 @@ fn virtual_dir_attr(ino: u64) -> FileAttr {
     }
 }
 
+/// Build a synthetic `FileAttr` for a virtual read-only regular file.
+fn virtual_file_attr(ino: u64, size: u64) -> FileAttr {
+    FileAttr {
+        ino,
+        size,
+        blocks: size.div_ceil(512),
+        atime: UNIX_EPOCH,
+        mtime: UNIX_EPOCH,
+        ctime: UNIX_EPOCH,
+        crtime: UNIX_EPOCH,
+        kind: FileType::RegularFile,
+        perm: 0o444,
+        nlink: 1,
+        uid: 0,
+        gid: 0,
+        rdev: 0,
+        blksize: 4096,
+        flags: 0,
+    }
+}
+
 /// Convert a `DirEntryType` to a fuser `FileType`.
 fn dir_entry_type_to_fuse(t: DirEntryType) -> FileType {
     match t {
@@ -227,6 +443,106 @@ impl Filesystem for Ext4FuseFs {
                     reply.entry(&TTL, &attr, 0);
                     return;
                 }
+            }
+            reply.error(libc::ENOENT);
+            return;
+        }
+
+        // deleted/ namespace lookup.
+        if parent == FUSE_DELETED_INO {
+            self.ensure_deleted_cache();
+            let cache = self.deleted_cache.borrow();
+            if let Some(entries) = cache.as_ref() {
+                for entry in entries {
+                    if name_bytes == entry.name.as_bytes() {
+                        let fuse_ino = deleted_ino(entry.ext4_ino);
+                        let attr = virtual_file_attr(fuse_ino, entry.size);
+                        reply.entry(&TTL, &attr, 0);
+                        return;
+                    }
+                }
+            }
+            reply.error(libc::ENOENT);
+            return;
+        }
+
+        // journal/ namespace lookup.
+        if parent == FUSE_JOURNAL_INO {
+            self.ensure_journal_cache();
+            let cache = self.journal_cache.borrow();
+            if let Some(entries) = cache.as_ref() {
+                for entry in entries {
+                    if name_bytes == entry.name.as_bytes() {
+                        let fuse_ino = journal_ino(entry.sequence);
+                        let attr = virtual_dir_attr(fuse_ino);
+                        reply.entry(&TTL, &attr, 0);
+                        return;
+                    }
+                }
+            }
+            reply.error(libc::ENOENT);
+            return;
+        }
+
+        // metadata/ namespace lookup.
+        if parent == FUSE_METADATA_INO {
+            self.ensure_metadata_cache();
+            let cache = self.metadata_cache.borrow();
+            if let Some(mc) = cache.as_ref() {
+                if name_bytes == b"superblock.json" {
+                    let fuse_ino = metadata_ino(1);
+                    let attr = virtual_file_attr(fuse_ino, mc.superblock_json.len() as u64);
+                    reply.entry(&TTL, &attr, 0);
+                    return;
+                }
+                if name_bytes == b"timeline.jsonl" {
+                    let fuse_ino = metadata_ino(2);
+                    let attr = virtual_file_attr(fuse_ino, mc.timeline_jsonl.len() as u64);
+                    reply.entry(&TTL, &attr, 0);
+                    return;
+                }
+            }
+            reply.error(libc::ENOENT);
+            return;
+        }
+
+        // unallocated/ namespace lookup.
+        if parent == FUSE_UNALLOCATED_INO {
+            self.ensure_unallocated_cache();
+            let cache = self.unallocated_cache.borrow();
+            if let Some(entries) = cache.as_ref() {
+                for (i, entry) in entries.iter().enumerate() {
+                    if name_bytes == entry.name.as_bytes() {
+                        let fuse_ino = unallocated_ino(i as u64);
+                        let block_size = self.fs.borrow_mut().superblock().block_size as u64;
+                        let size = entry.length * block_size;
+                        let attr = virtual_file_attr(fuse_ino, size);
+                        reply.entry(&TTL, &attr, 0);
+                        return;
+                    }
+                }
+            }
+            reply.error(libc::ENOENT);
+            return;
+        }
+
+        // session/ namespace lookup.
+        if parent == FUSE_SESSION_INO {
+            if name_bytes == b"status.json" && self.has_session() {
+                let session = self.session.borrow();
+                let s = session.as_ref().unwrap();
+                let status = serde_json::json!({
+                    "image_path": s.metadata.image_path,
+                    "image_sha256": s.metadata.image_sha256,
+                    "created": s.metadata.created,
+                });
+                let data = serde_json::to_string_pretty(&status)
+                    .unwrap_or_default()
+                    .into_bytes();
+                let fuse_ino = metadata_ino(100);
+                let attr = virtual_file_attr(fuse_ino, data.len() as u64);
+                reply.entry(&TTL, &attr, 0);
+                return;
             }
             reply.error(libc::ENOENT);
             return;
@@ -355,6 +671,79 @@ impl Filesystem for Ext4FuseFs {
         }
 
         match decode_fuse_ino(ino) {
+            InodeNamespace::Deleted(ext4_ino) => {
+                self.ensure_deleted_cache();
+                let cache = self.deleted_cache.borrow();
+                if let Some(entries) = cache.as_ref() {
+                    if let Some(entry) = entries.iter().find(|e| e.ext4_ino == ext4_ino) {
+                        reply.attr(&TTL, &virtual_file_attr(ino, entry.size));
+                        return;
+                    }
+                }
+                reply.error(libc::ENOENT);
+            }
+            InodeNamespace::Metadata(id) => {
+                self.ensure_metadata_cache();
+                let cache = self.metadata_cache.borrow();
+                if let Some(mc) = cache.as_ref() {
+                    match id {
+                        1 => {
+                            reply.attr(&TTL, &virtual_file_attr(ino, mc.superblock_json.len() as u64));
+                        }
+                        2 => {
+                            reply.attr(&TTL, &virtual_file_attr(ino, mc.timeline_jsonl.len() as u64));
+                        }
+                        100 => {
+                            // session/status.json
+                            if self.has_session() {
+                                let session = self.session.borrow();
+                                let s = session.as_ref().unwrap();
+                                let status = serde_json::json!({
+                                    "image_path": s.metadata.image_path,
+                                    "image_sha256": s.metadata.image_sha256,
+                                    "created": s.metadata.created,
+                                });
+                                let data = serde_json::to_string_pretty(&status)
+                                    .unwrap_or_default();
+                                reply.attr(&TTL, &virtual_file_attr(ino, data.len() as u64));
+                            } else {
+                                reply.error(libc::ENOENT);
+                            }
+                        }
+                        _ => reply.error(libc::ENOENT),
+                    }
+                } else {
+                    reply.error(libc::ENOENT);
+                }
+            }
+            InodeNamespace::Journal(seq) => {
+                self.ensure_journal_cache();
+                let cache = self.journal_cache.borrow();
+                if let Some(entries) = cache.as_ref() {
+                    if entries.iter().any(|e| e.sequence == seq) {
+                        reply.attr(&TTL, &virtual_dir_attr(ino));
+                    } else {
+                        reply.error(libc::ENOENT);
+                    }
+                } else {
+                    reply.error(libc::ENOENT);
+                }
+            }
+            InodeNamespace::Unallocated(range_id) => {
+                self.ensure_unallocated_cache();
+                let cache = self.unallocated_cache.borrow();
+                if let Some(entries) = cache.as_ref() {
+                    if let Some(entry) = entries.get(range_id as usize) {
+                        let block_size = self.fs.borrow_mut().superblock().block_size as u64;
+                        let size = entry.length * block_size;
+                        reply.attr(&TTL, &virtual_file_attr(ino, size));
+                    } else {
+                        reply.error(libc::ENOENT);
+                    }
+                } else {
+                    reply.error(libc::ENOENT);
+                }
+            }
             InodeNamespace::Ro(ext4_ino) => {
                 let mut fs = self.fs.borrow_mut();
                 match fs.inode(ext4_ino) {
@@ -532,20 +921,150 @@ impl Filesystem for Ext4FuseFs {
             return;
         }
 
+        // deleted/ readdir
+        if ino == FUSE_DELETED_INO {
+            self.ensure_deleted_cache();
+            let cache = self.deleted_cache.borrow();
+            let mut entries: Vec<(u64, FileType, String)> = vec![
+                (FUSE_DELETED_INO, FileType::Directory, ".".to_string()),
+                (FUSE_ROOT_INO, FileType::Directory, "..".to_string()),
+            ];
+            if let Some(cached) = cache.as_ref() {
+                for entry in cached {
+                    entries.push((
+                        deleted_ino(entry.ext4_ino),
+                        FileType::RegularFile,
+                        entry.name.clone(),
+                    ));
+                }
+            }
+            for (i, (entry_ino, kind, name)) in entries.iter().enumerate().skip(offset) {
+                if reply.add(*entry_ino, (i + 1) as i64, *kind, name) {
+                    break;
+                }
+            }
+            reply.ok();
+            return;
+        }
+
+        // journal/ readdir
+        if ino == FUSE_JOURNAL_INO {
+            self.ensure_journal_cache();
+            let cache = self.journal_cache.borrow();
+            let mut entries: Vec<(u64, FileType, String)> = vec![
+                (FUSE_JOURNAL_INO, FileType::Directory, ".".to_string()),
+                (FUSE_ROOT_INO, FileType::Directory, "..".to_string()),
+            ];
+            if let Some(cached) = cache.as_ref() {
+                for entry in cached {
+                    entries.push((
+                        journal_ino(entry.sequence),
+                        FileType::Directory,
+                        entry.name.clone(),
+                    ));
+                }
+            }
+            for (i, (entry_ino, kind, name)) in entries.iter().enumerate().skip(offset) {
+                if reply.add(*entry_ino, (i + 1) as i64, *kind, name) {
+                    break;
+                }
+            }
+            reply.ok();
+            return;
+        }
+
+        // journal/txn_N/ readdir (empty directory for now)
+        if let InodeNamespace::Journal(_seq) = decode_fuse_ino(ino) {
+            if offset == 0 {
+                let _ = reply.add(ino, 1, FileType::Directory, ".");
+                let _ = reply.add(FUSE_JOURNAL_INO, 2, FileType::Directory, "..");
+            }
+            reply.ok();
+            return;
+        }
+
+        // metadata/ readdir
+        if ino == FUSE_METADATA_INO {
+            self.ensure_metadata_cache();
+            let cache = self.metadata_cache.borrow();
+            let mut entries: Vec<(u64, FileType, String)> = vec![
+                (FUSE_METADATA_INO, FileType::Directory, ".".to_string()),
+                (FUSE_ROOT_INO, FileType::Directory, "..".to_string()),
+            ];
+            if cache.is_some() {
+                entries.push((
+                    metadata_ino(1),
+                    FileType::RegularFile,
+                    "superblock.json".to_string(),
+                ));
+                entries.push((
+                    metadata_ino(2),
+                    FileType::RegularFile,
+                    "timeline.jsonl".to_string(),
+                ));
+            }
+            for (i, (entry_ino, kind, name)) in entries.iter().enumerate().skip(offset) {
+                if reply.add(*entry_ino, (i + 1) as i64, *kind, name) {
+                    break;
+                }
+            }
+            reply.ok();
+            return;
+        }
+
+        // unallocated/ readdir
+        if ino == FUSE_UNALLOCATED_INO {
+            self.ensure_unallocated_cache();
+            let cache = self.unallocated_cache.borrow();
+            let mut entries: Vec<(u64, FileType, String)> = vec![
+                (FUSE_UNALLOCATED_INO, FileType::Directory, ".".to_string()),
+                (FUSE_ROOT_INO, FileType::Directory, "..".to_string()),
+            ];
+            if let Some(cached) = cache.as_ref() {
+                for (i, entry) in cached.iter().enumerate() {
+                    entries.push((
+                        unallocated_ino(i as u64),
+                        FileType::RegularFile,
+                        entry.name.clone(),
+                    ));
+                }
+            }
+            for (i, (entry_ino, kind, name)) in entries.iter().enumerate().skip(offset) {
+                if reply.add(*entry_ino, (i + 1) as i64, *kind, name) {
+                    break;
+                }
+            }
+            reply.ok();
+            return;
+        }
+
+        // session/ readdir
+        if ino == FUSE_SESSION_INO {
+            let mut entries: Vec<(u64, FileType, String)> = vec![
+                (FUSE_SESSION_INO, FileType::Directory, ".".to_string()),
+                (FUSE_ROOT_INO, FileType::Directory, "..".to_string()),
+            ];
+            if self.has_session() {
+                entries.push((
+                    metadata_ino(100),
+                    FileType::RegularFile,
+                    "status.json".to_string(),
+                ));
+            }
+            for (i, (entry_ino, kind, name)) in entries.iter().enumerate().skip(offset) {
+                if reply.add(*entry_ino, (i + 1) as i64, *kind, name) {
+                    break;
+                }
+            }
+            reply.ok();
+            return;
+        }
+
         // Determine the ext4 inode for this directory.
         let ext4_dir_ino = match ino {
             FUSE_RO_INO => 2u64,
             _ => match decode_fuse_ino(ino) {
                 InodeNamespace::Ro(ext4_ino) => ext4_ino,
-                InodeNamespace::Virtual(_) => {
-                    // Other virtual dirs (deleted, etc.) are empty for now.
-                    if offset == 0 {
-                        let _ = reply.add(ino, 1, FileType::Directory, ".");
-                        let _ = reply.add(FUSE_ROOT_INO, 2, FileType::Directory, "..");
-                    }
-                    reply.ok();
-                    return;
-                }
                 _ => {
                     reply.error(libc::ENOENT);
                     return;
@@ -601,6 +1120,93 @@ impl Filesystem for Ext4FuseFs {
         reply: ReplyData,
     ) {
         match decode_fuse_ino(ino) {
+            InodeNamespace::Deleted(ext4_ino) => {
+                self.ensure_deleted_cache();
+                let cache = self.deleted_cache.borrow();
+                if let Some(entries) = cache.as_ref() {
+                    if let Some(entry) = entries.iter().find(|e| e.ext4_ino == ext4_ino) {
+                        let off = offset as usize;
+                        if off >= entry.data.len() {
+                            reply.data(&[]);
+                        } else {
+                            let end = (off + size as usize).min(entry.data.len());
+                            reply.data(&entry.data[off..end]);
+                        }
+                        return;
+                    }
+                }
+                reply.error(libc::ENOENT);
+            }
+            InodeNamespace::Metadata(id) => {
+                self.ensure_metadata_cache();
+                let data = match id {
+                    1 => {
+                        let cache = self.metadata_cache.borrow();
+                        cache.as_ref().map(|mc| mc.superblock_json.clone())
+                    }
+                    2 => {
+                        let cache = self.metadata_cache.borrow();
+                        cache.as_ref().map(|mc| mc.timeline_jsonl.clone())
+                    }
+                    100 => {
+                        // session/status.json
+                        let session = self.session.borrow();
+                        session.as_ref().map(|s| {
+                            let status = serde_json::json!({
+                                "image_path": s.metadata.image_path,
+                                "image_sha256": s.metadata.image_sha256,
+                                "created": s.metadata.created,
+                            });
+                            serde_json::to_string_pretty(&status)
+                                .unwrap_or_default()
+                                .into_bytes()
+                        })
+                    }
+                    _ => None,
+                };
+                match data {
+                    Some(buf) => {
+                        let off = offset as usize;
+                        if off >= buf.len() {
+                            reply.data(&[]);
+                        } else {
+                            let end = (off + size as usize).min(buf.len());
+                            reply.data(&buf[off..end]);
+                        }
+                    }
+                    None => reply.error(libc::ENOENT),
+                }
+            }
+            InodeNamespace::Unallocated(range_id) => {
+                self.ensure_unallocated_cache();
+                let range_info = {
+                    let cache = self.unallocated_cache.borrow();
+                    cache.as_ref().and_then(|entries| {
+                        entries.get(range_id as usize).map(|e| forensic::BlockRange {
+                            start: e.start,
+                            length: e.length,
+                        })
+                    })
+                };
+                match range_info {
+                    Some(range) => {
+                        let mut fs = self.fs.borrow_mut();
+                        match fs.read_unallocated(&range) {
+                            Ok(data) => {
+                                let off = offset as usize;
+                                if off >= data.len() {
+                                    reply.data(&[]);
+                                } else {
+                                    let end = (off + size as usize).min(data.len());
+                                    reply.data(&data[off..end]);
+                                }
+                            }
+                            Err(_) => reply.error(libc::EIO),
+                        }
+                    }
+                    None => reply.error(libc::ENOENT),
+                }
+            }
             InodeNamespace::Ro(ext4_ino) => {
                 let mut fs = self.fs.borrow_mut();
                 match fs.read_inode_data_range(ext4_ino, offset as u64, size as usize) {
