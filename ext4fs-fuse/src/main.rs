@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod fusefs;
 mod inode_map;
 mod session;
 
@@ -48,9 +49,28 @@ enum Commands {
 fn main() {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Mount { image, mountpoint, session, resume } => {
-            eprintln!("Mounting {image} at {mountpoint} (session: {session:?}, resume: {resume})");
-            todo!("FUSE mount implementation")
+        Commands::Mount { image, mountpoint, session: _, resume: _ } => {
+            let file = std::fs::File::open(&image)
+                .unwrap_or_else(|e| {
+                    eprintln!("Cannot open {image}: {e}");
+                    std::process::exit(1);
+                });
+            let fs = ext4fs::Ext4Fs::open(file)
+                .unwrap_or_else(|e| {
+                    eprintln!("Cannot parse ext4: {e}");
+                    std::process::exit(1);
+                });
+            let fuse_fs = fusefs::Ext4FuseFs::new(fs);
+            eprintln!("Mounting {image} at {mountpoint}");
+            let options = vec![
+                fuser::MountOption::RO,
+                fuser::MountOption::FSName("ext4fs-fuse".to_string()),
+            ];
+            fuser::mount2(fuse_fs, &mountpoint, &options)
+                .unwrap_or_else(|e| {
+                    eprintln!("Mount failed: {e}");
+                    std::process::exit(1);
+                });
         }
         Commands::ExportSession { session_dir, output } => {
             eprintln!("Exporting session {session_dir} to {output}");

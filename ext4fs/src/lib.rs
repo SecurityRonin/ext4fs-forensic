@@ -109,6 +109,33 @@ impl<R: Read + Seek> Ext4Fs<R> {
         }
     }
 
+    // --- Tier 1b: Inode-based access (for FUSE) ---
+
+    /// List directory entries by inode number.
+    pub fn read_dir_by_ino(&mut self, dir_ino: u64) -> Result<Vec<DirEntry>> {
+        self.dir_reader.read_dir(dir_ino)
+    }
+
+    /// Lookup a name inside a directory by inode number.
+    pub fn lookup_by_ino(&mut self, dir_ino: u64, name: &[u8]) -> Result<Option<u64>> {
+        self.dir_reader.lookup(dir_ino, name)
+    }
+
+    /// Read symlink target by inode number.
+    pub fn read_link_by_ino(&mut self, ino: u64) -> Result<Vec<u8>> {
+        self.dir_reader.read_link(ino)
+    }
+
+    /// Read file data by inode number.
+    pub fn read_inode_data(&mut self, ino: u64) -> Result<Vec<u8>> {
+        self.dir_reader.inode_reader_mut().read_inode_data(ino)
+    }
+
+    /// Read a range of file data by inode number.
+    pub fn read_inode_data_range(&mut self, ino: u64, offset: u64, len: usize) -> Result<Vec<u8>> {
+        self.dir_reader.inode_reader_mut().read_inode_data_range(ino, offset, len)
+    }
+
     // --- Tier 2: Forensic access ---
 
     /// Read any inode by number.
