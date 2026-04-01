@@ -109,4 +109,61 @@ mod tests {
             assert!(window[0].timestamp <= window[1].timestamp);
         }
     }
+
+    fn open_forensic() -> Option<InodeReader<Cursor<Vec<u8>>>> {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/forensic.img");
+        let data = std::fs::read(path).ok()?;
+        let br = BlockReader::open(Cursor::new(data)).ok()?;
+        Some(InodeReader::new(br))
+    }
+
+    #[test]
+    fn forensic_timeline_contains_deletion_events() {
+        let mut reader = match open_forensic() {
+            Some(r) => r,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let events = generate_timeline(&mut reader).unwrap();
+        let deleted: Vec<&TimelineEvent> = events
+            .iter()
+            .filter(|e| e.event_type == EventType::Deleted)
+            .collect();
+        assert!(!deleted.is_empty(), "expected at least one Deleted event");
+        let deleted_inodes: Vec<u64> = deleted.iter().map(|e| e.inode).collect();
+        assert!(deleted_inodes.contains(&21), "expected Deleted event for inode 21");
+        assert!(deleted_inodes.contains(&22), "expected Deleted event for inode 22");
+    }
+
+    #[test]
+    fn forensic_timeline_contains_all_event_types() {
+        let mut reader = match open_forensic() {
+            Some(r) => r,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let events = generate_timeline(&mut reader).unwrap();
+        let has = |et: EventType| events.iter().any(|e| e.event_type == et);
+        assert!(has(EventType::Created), "missing Created events");
+        assert!(has(EventType::Modified), "missing Modified events");
+        assert!(has(EventType::Accessed), "missing Accessed events");
+        assert!(has(EventType::Changed), "missing Changed events");
+        assert!(has(EventType::Deleted), "missing Deleted events");
+    }
+
+    #[test]
+    fn forensic_timeline_is_sorted() {
+        let mut reader = match open_forensic() {
+            Some(r) => r,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let events = generate_timeline(&mut reader).unwrap();
+        assert!(events.len() > 1, "need multiple events to verify sorting");
+        for window in events.windows(2) {
+            assert!(
+                window[0].timestamp <= window[1].timestamp,
+                "events not sorted: {:?} > {:?}",
+                window[0].timestamp,
+                window[1].timestamp,
+            );
+        }
+    }
 }
