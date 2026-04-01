@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod inode_map;
+
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
