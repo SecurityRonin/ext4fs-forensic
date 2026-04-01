@@ -49,7 +49,7 @@ enum Commands {
 fn main() {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Mount { image, mountpoint, session: _, resume: _ } => {
+        Commands::Mount { image, mountpoint, session, resume } => {
             let file = std::fs::File::open(&image)
                 .unwrap_or_else(|e| {
                     eprintln!("Cannot open {image}: {e}");
@@ -60,12 +60,34 @@ fn main() {
                     eprintln!("Cannot parse ext4: {e}");
                     std::process::exit(1);
                 });
-            let fuse_fs = fusefs::Ext4FuseFs::new(fs);
+
+            let image_path = std::path::Path::new(&image);
+            let session_mgr = session.map(|dir| {
+                let session_path = std::path::Path::new(&dir).to_path_buf();
+                if resume {
+                    crate::session::Session::resume(&session_path, image_path)
+                        .unwrap_or_else(|e| {
+                            eprintln!("Cannot resume session: {e}");
+                            std::process::exit(1);
+                        })
+                } else {
+                    crate::session::Session::create(&session_path, image_path)
+                        .unwrap_or_else(|e| {
+                            eprintln!("Cannot create session: {e}");
+                            std::process::exit(1);
+                        })
+                }
+            });
+
+            let has_session = session_mgr.is_some();
+            let fuse_fs = fusefs::Ext4FuseFs::new(fs, session_mgr);
             eprintln!("Mounting {image} at {mountpoint}");
-            let options = vec![
-                fuser::MountOption::RO,
+            let mut options = vec![
                 fuser::MountOption::FSName("ext4fs-fuse".to_string()),
             ];
+            if !has_session {
+                options.push(fuser::MountOption::RO);
+            }
             fuser::mount2(fuse_fs, &mountpoint, &options)
                 .unwrap_or_else(|e| {
                     eprintln!("Mount failed: {e}");
