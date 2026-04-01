@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 use crate::error::{Ext4Error, Result};
+use crate::ondisk::superblock::EXT4_CRC32C;
 use bitflags::bitflags;
+use crc::Crc;
 
 // ---------------------------------------------------------------------------
 // Timestamp
@@ -314,6 +316,53 @@ impl Inode {
         self.dtime != 0
     }
 
+    /// Verify the inode's CRC32C checksum (METADATA_CSUM feature).
+    ///
+    /// The algorithm:
+    /// 1. Seed from `csum_seed` (or `crc32c(0xFFFFFFFF, uuid)` if zero)
+    /// 2. Feed `le32(ino)` then `le32(generation)`
+    /// 3. Feed the full raw inode bytes with both checksum fields zeroed
+    /// 4. Compare the 32-bit result against `self.checksum`
+    pub fn verify_checksum(
+        &self,
+        raw_buf: &[u8],
+        uuid: &[u8; 16],
+        ino: u32,
+        generation: u32,
+        csum_seed: u32,
+    ) -> bool {
+        let crc32c = Crc::<u32>::new(&EXT4_CRC32C);
+
+        let seed = if csum_seed != 0 {
+            csum_seed
+        } else {
+            let mut d = crc32c.digest();
+            d.update(uuid);
+            d.finalize()
+        };
+
+        let mut digest = crc32c.digest_with_initial(seed.reverse_bits());
+        digest.update(&ino.to_le_bytes());
+        digest.update(&generation.to_le_bytes());
+
+        // Zero out the checksum fields before computing
+        let mut buf = raw_buf.to_vec();
+        // lo16 at 0x7C
+        if buf.len() > 0x7E {
+            buf[0x7C] = 0;
+            buf[0x7D] = 0;
+        }
+        // hi16 at 0x82 (only if extended inode)
+        if buf.len() > 0x84 {
+            buf[0x82] = 0;
+            buf[0x83] = 0;
+        }
+        digest.update(&buf);
+
+        let computed = digest.finalize();
+        computed == self.checksum
+    }
+
     /// True if the inode is an orphan: unlinked (`links_count == 0`) but
     /// never fully deleted (`dtime == 0`) and still has content (`mode != 0`).
     ///
@@ -403,6 +452,42 @@ mod tests {
         assert_eq!(inode.i_block.len(), 60);
         assert_eq!(inode.i_block[0], 0);
         assert_eq!(inode.i_block[59], 59);
+    }
+
+    #[test]
+    fn verify_inode_checksum_on_forensic_img() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/forensic.img");
+        let data = match std::fs::read(path) {
+            Ok(d) => d,
+            Err(_) => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        use crate::ondisk::superblock::Superblock;
+        let sb = Superblock::parse(&data[1024..]).unwrap();
+        assert!(sb.has_metadata_csum(), "forensic.img should have metadata_csum");
+
+        let inode_size = sb.inode_size;
+        let inodes_per_group = sb.inodes_per_group;
+
+        // Read group descriptor to find inode table
+        let desc_size = sb.desc_size;
+        let gdt_offset = sb.block_size as usize;
+        use crate::ondisk::group_desc::GroupDescriptor;
+        let gd = GroupDescriptor::parse(
+            &data[gdt_offset..gdt_offset + desc_size as usize],
+            desc_size,
+        ).unwrap();
+
+        // Read inode 12 (hello.txt) raw bytes from inode table
+        let ino: u32 = 12;
+        let index = (ino - 1) % inodes_per_group;
+        let byte_offset = gd.inode_table * sb.block_size as u64 + index as u64 * inode_size as u64;
+        let raw = &data[byte_offset as usize..(byte_offset + inode_size as u64) as usize];
+        let inode = Inode::parse(raw, inode_size).unwrap();
+
+        assert!(
+            inode.verify_checksum(raw, &sb.uuid, ino, inode.generation, sb.checksum_seed),
+            "inode 12 checksum should verify"
+        );
     }
 
     #[test]
