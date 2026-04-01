@@ -84,3 +84,181 @@ impl From<io::Error> for Ext4Error {
 
 /// Convenience alias.
 pub type Result<T> = std::result::Result<T, Ext4Error>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::error::Error;
+
+    #[test]
+    fn display_io() {
+        let err = Ext4Error::Io(io::Error::new(io::ErrorKind::NotFound, "gone"));
+        let msg = err.to_string();
+        assert!(msg.contains("I/O error"), "got: {msg}");
+        assert!(msg.contains("gone"), "got: {msg}");
+    }
+
+    #[test]
+    fn display_invalid_magic() {
+        let err = Ext4Error::InvalidMagic { found: 0xBEEF };
+        let msg = err.to_string();
+        assert!(msg.contains("BEEF"), "got: {msg}");
+        assert!(msg.contains("0xEF53"), "got: {msg}");
+    }
+
+    #[test]
+    fn display_invalid_superblock() {
+        let err = Ext4Error::InvalidSuperblock("bad field".into());
+        let msg = err.to_string();
+        assert!(msg.contains("invalid superblock"), "got: {msg}");
+        assert!(msg.contains("bad field"), "got: {msg}");
+    }
+
+    #[test]
+    fn display_unsupported_feature() {
+        let err = Ext4Error::UnsupportedFeature("inline_data".into());
+        let msg = err.to_string();
+        assert!(msg.contains("unsupported feature"), "got: {msg}");
+        assert!(msg.contains("inline_data"), "got: {msg}");
+    }
+
+    #[test]
+    fn display_inode_out_of_range() {
+        let err = Ext4Error::InodeOutOfRange { ino: 999, max: 100 };
+        let msg = err.to_string();
+        assert!(msg.contains("999"), "got: {msg}");
+        assert!(msg.contains("100"), "got: {msg}");
+    }
+
+    #[test]
+    fn display_block_out_of_range() {
+        let err = Ext4Error::BlockOutOfRange { block: 50, max: 10 };
+        let msg = err.to_string();
+        assert!(msg.contains("50"), "got: {msg}");
+        assert!(msg.contains("10"), "got: {msg}");
+    }
+
+    #[test]
+    fn display_corrupt_metadata() {
+        let err = Ext4Error::CorruptMetadata {
+            structure: "group_desc",
+            detail: "bad checksum".into(),
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("corrupt group_desc"), "got: {msg}");
+        assert!(msg.contains("bad checksum"), "got: {msg}");
+    }
+
+    #[test]
+    fn display_checksum_mismatch() {
+        let err = Ext4Error::ChecksumMismatch {
+            structure: "inode",
+            expected: 0xDEADBEEF,
+            computed: 0xCAFEBABE,
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("inode"), "got: {msg}");
+        assert!(msg.contains("DEADBEEF"), "got: {msg}");
+        assert!(msg.contains("CAFEBABE"), "got: {msg}");
+    }
+
+    #[test]
+    fn display_path_not_found() {
+        let err = Ext4Error::PathNotFound("/missing".into());
+        let msg = err.to_string();
+        assert!(msg.contains("path not found"), "got: {msg}");
+        assert!(msg.contains("/missing"), "got: {msg}");
+    }
+
+    #[test]
+    fn display_not_a_directory() {
+        let err = Ext4Error::NotADirectory("/file".into());
+        let msg = err.to_string();
+        assert!(msg.contains("not a directory"), "got: {msg}");
+    }
+
+    #[test]
+    fn display_not_a_symlink() {
+        let err = Ext4Error::NotASymlink("/regular".into());
+        let msg = err.to_string();
+        assert!(msg.contains("not a symlink"), "got: {msg}");
+    }
+
+    #[test]
+    fn display_symlink_loop() {
+        let err = Ext4Error::SymlinkLoop {
+            path: "/a".into(),
+            depth: 40,
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("symlink loop"), "got: {msg}");
+        assert!(msg.contains("40"), "got: {msg}");
+    }
+
+    #[test]
+    fn display_no_journal() {
+        let err = Ext4Error::NoJournal;
+        let msg = err.to_string();
+        assert!(msg.contains("no journal"), "got: {msg}");
+    }
+
+    #[test]
+    fn display_journal_corrupt() {
+        let err = Ext4Error::JournalCorrupt("truncated".into());
+        let msg = err.to_string();
+        assert!(msg.contains("journal corrupt"), "got: {msg}");
+        assert!(msg.contains("truncated"), "got: {msg}");
+    }
+
+    #[test]
+    fn display_recovery_failed() {
+        let err = Ext4Error::RecoveryFailed {
+            ino: 42,
+            reason: "zeroed".into(),
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("42"), "got: {msg}");
+        assert!(msg.contains("zeroed"), "got: {msg}");
+    }
+
+    #[test]
+    fn display_too_short() {
+        let err = Ext4Error::TooShort {
+            structure: "extent_header",
+            expected: 12,
+            found: 4,
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("extent_header"), "got: {msg}");
+        assert!(msg.contains("12"), "got: {msg}");
+        assert!(msg.contains("4"), "got: {msg}");
+    }
+
+    #[test]
+    fn source_io_returns_some() {
+        let err = Ext4Error::Io(io::Error::new(io::ErrorKind::BrokenPipe, "pipe"));
+        assert!(err.source().is_some());
+    }
+
+    #[test]
+    fn source_non_io_returns_none() {
+        let err = Ext4Error::NoJournal;
+        assert!(err.source().is_none());
+
+        let err = Ext4Error::InvalidMagic { found: 0 };
+        assert!(err.source().is_none());
+
+        let err = Ext4Error::PathNotFound("x".into());
+        assert!(err.source().is_none());
+    }
+
+    #[test]
+    fn from_io_error() {
+        let io_err = io::Error::new(io::ErrorKind::PermissionDenied, "denied");
+        let ext4_err: Ext4Error = io_err.into();
+        match ext4_err {
+            Ext4Error::Io(_) => {}
+            other => panic!("expected Io variant, got: {other:?}"),
+        }
+    }
+}
