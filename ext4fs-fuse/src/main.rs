@@ -95,12 +95,24 @@ fn main() {
                 });
         }
         Commands::ExportSession { session_dir, output } => {
-            eprintln!("Exporting session {session_dir} to {output}");
-            todo!("session export")
+            crate::session::export_session(
+                std::path::Path::new(&session_dir),
+                std::path::Path::new(&output),
+            ).unwrap_or_else(|e| {
+                eprintln!("Export failed: {e}");
+                std::process::exit(1);
+            });
+            eprintln!("Session exported to {output}");
         }
         Commands::ImportSession { tarball, session } => {
-            eprintln!("Importing session from {tarball} to {session}");
-            todo!("session import")
+            crate::session::import_session(
+                std::path::Path::new(&tarball),
+                std::path::Path::new(&session),
+            ).unwrap_or_else(|e| {
+                eprintln!("Import failed: {e}");
+                std::process::exit(1);
+            });
+            eprintln!("Session imported to {session}");
         }
     }
 }
