@@ -291,8 +291,8 @@ mod tests {
             if inode.file_type() == FileType::Directory && inode.mode != 0 {
                 let entries = r.read_dir(*ino).unwrap();
                 let names: Vec<String> = entries.iter().map(|e| e.name_str()).collect();
-                assert!(names.contains(&".".to_string()), "dir ino {} missing '.'", ino);
-                assert!(names.contains(&"..".to_string()), "dir ino {} missing '..'", ino);
+                assert!(names.contains(&".".to_string()), "dir ino {ino} missing '.'");
+                assert!(names.contains(&"..".to_string()), "dir ino {ino} missing '..'");
                 dir_count += 1;
             }
         }

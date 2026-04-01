@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 use crate::block::BlockReader;
 use crate::error::{Ext4Error, Result};
+use crate::ondisk::xattr::XattrEntry;
 use crate::ondisk::{ExtentHeader, ExtentIndex, ExtentLeaf, Inode};
 use std::io::{Read, Seek};
 
@@ -16,6 +17,44 @@ pub struct BlockMapping {
     pub physical_block: u64,
     pub length: u64,
     pub unwritten: bool,
+}
+
+// ---------------------------------------------------------------------------
+// Inline data overflow helper
+// ---------------------------------------------------------------------------
+
+/// Search the ibody xattr region for a `system.data` xattr (inline data overflow).
+///
+/// The ibody slice should start immediately after the fixed+extended inode
+/// fields, i.e. at offset `0x80 + extra_isize` within the raw inode bytes.
+fn find_system_data_xattr(ibody: &[u8]) -> Option<Vec<u8>> {
+    let mut offset = 0;
+    while offset + 16 <= ibody.len() {
+        // A zero first byte (name_len == 0) signals end of entries.
+        if ibody[offset] == 0 {
+            break;
+        }
+        match XattrEntry::parse(&ibody[offset..]) {
+            Ok(entry) => {
+                // system.data: System namespace (index 7) with name "data"
+                if entry.name == b"data"
+                    && matches!(
+                        entry.name_index,
+                        crate::ondisk::xattr::XattrNamespace::System
+                    )
+                {
+                    let vs = entry.value_offset as usize;
+                    let ve = vs + entry.value_size as usize;
+                    if ve <= ibody.len() {
+                        return Some(ibody[vs..ve].to_vec());
+                    }
+                }
+                offset += entry.entry_size;
+            }
+            Err(_) => break,
+        }
+    }
+    None
 }
 
 // ---------------------------------------------------------------------------
@@ -281,7 +320,22 @@ impl<R: Read + Seek> InodeReader<R> {
         let inode = self.read_inode(ino)?;
         if inode.has_inline_data() {
             let len = (inode.size as usize).min(60);
-            return Ok(inode.i_block[..len].to_vec());
+            let mut data = inode.i_block[..len].to_vec();
+            // For inline data files > 60 bytes, overflow is in system.data xattr
+            if inode.size > 60 {
+                if let Ok(raw) = self.read_inode_raw(ino) {
+                    let inode_size = self.block_reader.superblock().inode_size as usize;
+                    let ibody_offset = 0x80 + inode.extra_isize as usize;
+                    if inode_size > ibody_offset {
+                        let ibody = &raw[ibody_offset..inode_size.min(raw.len())];
+                        if let Some(value) = find_system_data_xattr(ibody) {
+                            data.extend_from_slice(&value);
+                        }
+                    }
+                }
+            }
+            data.truncate(inode.size as usize);
+            return Ok(data);
         }
         let size = inode.size as usize;
         let _block_size = self.block_reader.block_size() as usize;
@@ -502,5 +556,17 @@ mod tests {
     fn is_inode_allocated() {
         let mut r = open_minimal();
         assert!(r.is_inode_allocated(2).unwrap());
+    }
+
+    #[test]
+    fn read_inode_data_extent_path_returns_data() {
+        let mut reader = open_minimal();
+        // Root inode (2) uses extents — verify the non-inline path works
+        let inode = reader.read_inode(2).unwrap();
+        assert!(!inode.has_inline_data());
+        assert!(inode.uses_extents());
+        let data = reader.read_inode_data(2).unwrap();
+        assert_eq!(data.len(), inode.size as usize);
+        assert!(!data.is_empty());
     }
 }
