@@ -72,6 +72,28 @@ impl<R: Read + Seek> InodeReader<R> {
     }
 
     // -----------------------------------------------------------------------
+    // Raw inode access
+    // -----------------------------------------------------------------------
+
+    /// Read the raw inode bytes for an inode number.
+    /// Returns the full inode-sized buffer from the inode table.
+    pub fn read_inode_raw(&mut self, ino: u64) -> Result<Vec<u8>> {
+        let sb = self.block_reader.superblock();
+        let inode_size = sb.inode_size as u64;
+        let inodes_per_group = sb.inodes_per_group as u64;
+        let max = sb.inodes_count as u64;
+        if ino < 1 || ino > max {
+            return Err(Ext4Error::InodeOutOfRange { ino, max });
+        }
+        let group = ((ino - 1) / inodes_per_group) as u32;
+        let index = (ino - 1) % inodes_per_group;
+        let inode_table_block = self.block_reader.inode_table_block(group)?;
+        let block_size = self.block_reader.superblock().block_size as u64;
+        let byte_offset = inode_table_block * block_size + index * inode_size;
+        self.block_reader.read_bytes(byte_offset, inode_size as usize)
+    }
+
+    // -----------------------------------------------------------------------
     // Block map / extent tree
     // -----------------------------------------------------------------------
 

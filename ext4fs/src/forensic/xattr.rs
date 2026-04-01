@@ -2,7 +2,7 @@
 
 use crate::error::Result;
 use crate::inode::InodeReader;
-use crate::ondisk::xattr::{XattrBlockHeader, XattrEntry, XattrNamespace};
+use crate::ondisk::xattr::{XattrBlockHeader, XattrEntry, XattrNamespace, XATTR_MAGIC};
 use std::io::{Read, Seek};
 
 /// A parsed extended attribute with its value.
@@ -13,9 +13,10 @@ pub struct Xattr {
     pub value: Vec<u8>,
 }
 
-/// Read block-stored extended attributes for an inode (from `i_file_acl`).
+/// Read extended attributes for an inode.
 ///
-/// Inline xattrs stored in the inode body are not yet supported.
+/// Reads both inline xattrs stored in the inode body (ibody) and
+/// block-stored xattrs from `i_file_acl`.
 pub fn read_xattrs<R: Read + Seek>(
     reader: &mut InodeReader<R>,
     ino: u64,
@@ -23,7 +24,51 @@ pub fn read_xattrs<R: Read + Seek>(
     let inode = reader.read_inode(ino)?;
     let mut xattrs = Vec::new();
 
-    // Block xattrs (from i_file_acl)
+    // --- Inline xattrs (ibody) ---
+    let inode_size = reader.block_reader().superblock().inode_size as usize;
+    let ibody_offset = 0x80 + inode.extra_isize as usize;
+    if inode.extra_isize > 0 && inode_size > ibody_offset {
+        let raw = reader.read_inode_raw(ino)?;
+        let ibody_region = &raw[ibody_offset..];
+        if ibody_region.len() >= 4 {
+            // Check for and skip the 4-byte inline xattr magic (0xEA020000)
+            let magic = u32::from_le_bytes([
+                ibody_region[0], ibody_region[1],
+                ibody_region[2], ibody_region[3],
+            ]);
+            let entry_start = if magic == XATTR_MAGIC { 4 } else { 0 };
+            let mut offset = entry_start;
+            while offset + 16 <= ibody_region.len() {
+                // Zero name_index signals end of entries
+                if ibody_region[offset] == 0 {
+                    break;
+                }
+                match XattrEntry::parse(&ibody_region[offset..]) {
+                    Ok(entry) => {
+                        // For ibody xattrs, value_offset is relative to
+                        // the start of the entry area (after the magic),
+                        // so add entry_start to get the position in ibody_region.
+                        let value_start = entry.value_offset as usize + entry_start;
+                        let value_end = value_start + entry.value_size as usize;
+                        let value = if value_end <= ibody_region.len() {
+                            ibody_region[value_start..value_end].to_vec()
+                        } else {
+                            Vec::new()
+                        };
+                        xattrs.push(Xattr {
+                            namespace: entry.name_index,
+                            name: entry.name.clone(),
+                            value,
+                        });
+                        offset += entry.entry_size;
+                    }
+                    Err(_) => break,
+                }
+            }
+        }
+    }
+
+    // --- Block xattrs (from i_file_acl) ---
     if inode.file_acl != 0 {
         let block_data = reader.block_reader_mut().read_block(inode.file_acl)?;
         if let Ok(_header) = XattrBlockHeader::parse(&block_data) {
@@ -120,5 +165,50 @@ mod tests {
 
         let xattrs = read_xattrs(&mut reader, 2).unwrap();
         let _ = xattrs;
+    }
+
+    #[test]
+    fn read_inline_xattrs_for_hello_txt() {
+        let mut reader = match open_forensic() {
+            Some(r) => r,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        // hello.txt is inode 12 in forensic.img
+        let xattrs = read_xattrs(&mut reader, 12).unwrap();
+        let names: Vec<String> = xattrs.iter()
+            .map(|x| String::from_utf8_lossy(&x.name).to_string())
+            .collect();
+        assert!(
+            names.contains(&"forensic".to_string()),
+            "expected user.forensic xattr, found: {:?}", names
+        );
+        assert!(
+            names.contains(&"case_id".to_string()),
+            "expected user.case_id xattr, found: {:?}", names
+        );
+    }
+
+    #[test]
+    fn inline_xattr_values_are_correct() {
+        let mut reader = match open_forensic() {
+            Some(r) => r,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let xattrs = read_xattrs(&mut reader, 12).unwrap();
+        let forensic_xattr = xattrs.iter()
+            .find(|x| x.name == b"forensic")
+            .expect("user.forensic xattr not found");
+        assert_eq!(
+            String::from_utf8_lossy(&forensic_xattr.value),
+            "evidence-tag"
+        );
+
+        let case_xattr = xattrs.iter()
+            .find(|x| x.name == b"case_id")
+            .expect("user.case_id xattr not found");
+        assert_eq!(
+            String::from_utf8_lossy(&case_xattr.value),
+            "2026-0401"
+        );
     }
 }
