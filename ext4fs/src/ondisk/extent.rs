@@ -48,7 +48,7 @@ impl ExtentHeader {
         if magic != EXTENT_MAGIC {
             return Err(Ext4Error::CorruptMetadata {
                 structure: "ExtentHeader",
-                detail:    format!("bad magic: 0x{:04X}", magic),
+                detail:    format!("bad magic: 0x{magic:04X}"),
             });
         }
         Ok(Self {

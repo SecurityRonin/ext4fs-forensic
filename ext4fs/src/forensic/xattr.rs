@@ -180,11 +180,11 @@ mod tests {
             .collect();
         assert!(
             names.contains(&"forensic".to_string()),
-            "expected user.forensic xattr, found: {:?}", names
+            "expected user.forensic xattr, found: {names:?}"
         );
         assert!(
             names.contains(&"case_id".to_string()),
-            "expected user.case_id xattr, found: {:?}", names
+            "expected user.case_id xattr, found: {names:?}"
         );
     }
 

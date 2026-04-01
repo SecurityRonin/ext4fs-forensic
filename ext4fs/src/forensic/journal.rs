@@ -94,8 +94,8 @@ pub fn parse_journal<R: Read + Seek>(reader: &mut InodeReader<R>) -> Result<Jour
         let end = (offset + j_block_size).min(journal_data.len());
         let block_data = &journal_data[offset..end];
 
-        match JournalHeader::parse(block_data) {
-            Ok(header) => match header.block_type {
+        if let Ok(header) = JournalHeader::parse(block_data) {
+            match header.block_type {
                 JournalBlockType::Descriptor => {
                     pending_tags.clear();
                     current_mappings.clear();
@@ -157,8 +157,7 @@ pub fn parse_journal<R: Read + Seek>(reader: &mut InodeReader<R>) -> Result<Jour
                 JournalBlockType::SuperblockV1
                 | JournalBlockType::SuperblockV2
                 | JournalBlockType::Unknown(_) => {}
-            },
-            Err(_) => {}
+            }
         }
         block_idx += 1;
     }

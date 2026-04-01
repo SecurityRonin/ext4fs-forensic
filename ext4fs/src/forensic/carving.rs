@@ -149,7 +149,7 @@ mod tests {
         let ranges = unallocated_blocks(&mut reader).unwrap();
         assert!(!ranges.is_empty(), "expected unallocated block ranges");
         let total_free: u64 = ranges.iter().map(|r| r.length).sum();
-        assert!(total_free > 100, "expected > 100 free blocks in 32MB image, got {}", total_free);
+        assert!(total_free > 100, "expected > 100 free blocks in 32MB image, got {total_free}");
     }
 
     #[test]

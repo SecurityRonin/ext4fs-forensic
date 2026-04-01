@@ -78,7 +78,7 @@ pub fn recover_file<R: Read + Seek>(
                 });
                 let remaining = (expected_size as usize).saturating_sub(data.len());
                 let fill = remaining.min(block_size as usize);
-                data.extend(std::iter::repeat(0u8).take(fill));
+                data.extend(vec![0u8; fill]);
                 overwritten_bytes += fill as u64;
             } else {
                 match reader.block_reader_mut().read_block(block) {
@@ -90,7 +90,7 @@ pub fn recover_file<R: Read + Seek>(
                     Err(_) => {
                         let remaining = (expected_size as usize).saturating_sub(data.len());
                         let fill = remaining.min(block_size as usize);
-                        data.extend(std::iter::repeat(0u8).take(fill));
+                        data.extend(vec![0u8; fill]);
                         overwritten_bytes += fill as u64;
                     }
                 }

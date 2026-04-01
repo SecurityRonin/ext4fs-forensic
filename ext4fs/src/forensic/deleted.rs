@@ -136,9 +136,8 @@ fn estimate_recoverability<R: Read + Seek>(
     for mapping in &mappings {
         for i in 0..mapping.length {
             let block = mapping.physical_block + i;
-            match reader.is_block_allocated(block) {
-                Ok(false) => free_blocks += 1,
-                _ => {}
+            if let Ok(false) = reader.is_block_allocated(block) {
+                free_blocks += 1;
             }
         }
     }
@@ -201,8 +200,8 @@ mod tests {
         let deleted = find_deleted_inodes(&mut reader).unwrap();
         assert!(deleted.len() >= 2, "expected at least 2 deleted inodes, got {}", deleted.len());
         let inos: Vec<u64> = deleted.iter().map(|d| d.ino).collect();
-        assert!(inos.contains(&21), "expected inode 21 in deleted list, got {:?}", inos);
-        assert!(inos.contains(&22), "expected inode 22 in deleted list, got {:?}", inos);
+        assert!(inos.contains(&21), "expected inode 21 in deleted list, got {inos:?}");
+        assert!(inos.contains(&22), "expected inode 22 in deleted list, got {inos:?}");
     }
 
     #[test]

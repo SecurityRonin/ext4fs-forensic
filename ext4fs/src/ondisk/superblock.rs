@@ -368,7 +368,7 @@ impl Superblock {
         }
         let total = self.blocks_count;
         let per = self.blocks_per_group as u64;
-        ((total + per - 1) / per) as u32
+        total.div_ceil(per) as u32
     }
 }
 

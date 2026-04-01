@@ -284,7 +284,7 @@ impl<R: Read + Seek> InodeReader<R> {
             return Ok(inode.i_block[..len].to_vec());
         }
         let size = inode.size as usize;
-        let block_size = self.block_reader.block_size() as usize;
+        let _block_size = self.block_reader.block_size() as usize;
         let map = if inode.uses_extents() {
             self.walk_extent_tree(&inode.i_block)?
         } else {

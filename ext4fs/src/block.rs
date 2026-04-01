@@ -124,7 +124,7 @@ mod tests {
     #[test]
     fn open_minimal_image() {
         let data = load_minimal_image().expect("minimal.img required");
-        let mut reader = BlockReader::open(Cursor::new(data)).unwrap();
+        let reader = BlockReader::open(Cursor::new(data)).unwrap();
         assert_eq!(reader.superblock().magic, 0xEF53);
         assert_eq!(reader.superblock().block_size, 4096);
         assert!(reader.group_count() > 0);
