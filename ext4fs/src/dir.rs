@@ -267,4 +267,35 @@ mod tests {
         let data = r.inode_reader_mut().read_inode_data(ino).unwrap();
         assert_eq!(data, b"Hello, ext4!");
     }
+
+    fn open_forensic() -> Option<DirReader<Cursor<Vec<u8>>>> {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/forensic.img");
+        let data = std::fs::read(path).ok()?;
+        let br = BlockReader::open(Cursor::new(data)).ok()?;
+        let ir = InodeReader::new(br);
+        Some(DirReader::new(ir))
+    }
+
+    #[test]
+    fn read_dir_handles_all_directory_types() {
+        let mut r = match open_forensic() {
+            Some(r) => r,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        let all_inodes = r.inode_reader_mut().iter_all_inodes().unwrap();
+        let mut dir_count = 0;
+        for (ino, inode) in &all_inodes {
+            if inode.file_type() == FileType::Directory && inode.mode != 0 {
+                let entries = r.read_dir(*ino).unwrap();
+                let names: Vec<String> = entries.iter().map(|e| e.name_str()).collect();
+                assert!(names.contains(&".".to_string()), "dir ino {} missing '.'", ino);
+                assert!(names.contains(&"..".to_string()), "dir ino {} missing '..'", ino);
+                dir_count += 1;
+            }
+        }
+        assert!(dir_count > 0, "no directories found");
+    }
 }
