@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod inode_map;
+mod session;
 
 use clap::{Parser, Subcommand};
 
