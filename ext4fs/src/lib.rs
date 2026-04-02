@@ -239,6 +239,11 @@ impl<R: Read + Seek> Ext4Fs<R> {
         self.dir_reader.inode_reader_mut().block_reader_mut().read_block(block)
     }
 
+    /// Verify all superblock backups against the primary.
+    pub fn verify_superblock_backups(&mut self) -> Result<Vec<forensic::SuperblockComparison>> {
+        forensic::superblock_verify::verify_superblock_backups(self.dir_reader.inode_reader_mut())
+    }
+
     /// Search for a byte pattern across filesystem blocks.
     pub fn search_blocks(
         &mut self,
@@ -624,6 +629,16 @@ mod tests {
         };
         let slacks = fs.scan_all_slack().unwrap();
         assert!(!slacks.is_empty(), "forensic.img should have files with slack");
+    }
+
+    #[test]
+    fn verify_superblock_backups_api() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let results = fs.verify_superblock_backups().unwrap();
+        let _ = results; // small image may have no backups
     }
 
     #[test]

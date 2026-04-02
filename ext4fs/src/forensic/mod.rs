@@ -11,6 +11,7 @@ pub mod slack;
 pub mod dir_recovery;
 pub mod history;
 pub mod search;
+pub mod superblock_verify;
 
 pub use deleted::*;
 pub use journal::*;
@@ -23,3 +24,4 @@ pub use slack::SlackSpace;
 pub use dir_recovery::RecoveredDirEntry;
 pub use history::InodeVersion as HistoryVersion;
 pub use search::{SearchHit, SearchScope};
+pub use superblock_verify::SuperblockComparison;

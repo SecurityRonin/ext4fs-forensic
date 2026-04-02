@@ -100,7 +100,7 @@ const MIN_SUPERBLOCK_LEN: usize = 0x5A;
 
 /// Parsed ext4 superblock.  All multi-byte fields are converted from
 /// little-endian on disk to native endianness.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Superblock {
     pub inodes_count: u32,
     /// Combined lo + hi (64-bit mode).
