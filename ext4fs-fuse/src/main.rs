@@ -259,7 +259,7 @@ fn main() {
             mountpoint,
             session,
             resume,
-            filter_dbs,
+            filter_dbs: _,
             daemon,
         } => {
             let file = File::open(&image).unwrap_or_else(|e| {
@@ -271,8 +271,26 @@ fn main() {
                 std::process::exit(1);
             });
             let fs = Box::new(Ext4ForensicFs { fs: ext4 });
+
+            let session_mgr = session.map(|dir| {
+                let session_path = std::path::Path::new(&dir);
+                if resume {
+                    forensic_mount::session::Session::resume(session_path, std::path::Path::new(&image))
+                        .unwrap_or_else(|e| { eprintln!("Cannot resume session: {e}"); std::process::exit(1); })
+                } else {
+                    forensic_mount::session::Session::create(session_path, std::path::Path::new(&image))
+                        .unwrap_or_else(|e| { eprintln!("Cannot create session: {e}"); std::process::exit(1); })
+                }
+            });
+
+            let options = forensic_mount::MountOptions {
+                read_only: session_mgr.is_none(),
+                daemon,
+                fs_name: "ext4fs-fuse".to_string(),
+            };
+
             eprintln!("Mounting {image} at {mountpoint}");
-            forensic_mount::mount(fs, &mountpoint, session.as_deref(), resume, &filter_dbs, daemon)
+            forensic_mount::mount(fs, std::path::Path::new(&mountpoint), session_mgr, &options)
                 .unwrap_or_else(|e| {
                     eprintln!("Mount failed: {e}");
                     std::process::exit(1);
