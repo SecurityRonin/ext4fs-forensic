@@ -305,3 +305,221 @@ fn main() {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn open_forensic_fs() -> Option<Ext4ForensicFs> {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/forensic.img");
+        let file = File::open(path).ok()?;
+        let ext4 = Ext4Fs::open(file).ok()?;
+        Some(Ext4ForensicFs { fs: ext4 })
+    }
+
+    #[test]
+    fn root_ino_is_2() {
+        let fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        assert_eq!(fs.root_ino(), 2);
+    }
+
+    #[test]
+    fn read_dir_root() {
+        let mut fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let entries = fs.read_dir(2).unwrap();
+        let names: Vec<String> = entries.iter().map(|e| e.name_str()).collect();
+        assert!(names.contains(&"hello.txt".to_string()));
+        assert!(names.contains(&".".to_string()));
+        assert!(names.contains(&"..".to_string()));
+    }
+
+    #[test]
+    fn lookup_hello_txt() {
+        let mut fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let result = fs.lookup(2, b"hello.txt").unwrap();
+        assert!(result.is_some());
+        assert!(result.unwrap() > 0);
+    }
+
+    #[test]
+    fn lookup_nonexistent() {
+        let mut fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let result = fs.lookup(2, b"no_such_file.xyz").unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn metadata_root() {
+        let mut fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let meta = fs.metadata(2).unwrap();
+        assert_eq!(meta.ino, 2);
+        assert_eq!(meta.file_type, FsFileType::Directory);
+        assert!(meta.allocated);
+        assert!(meta.links_count >= 2);
+    }
+
+    #[test]
+    fn metadata_hello_txt() {
+        let mut fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let ino = fs.lookup(2, b"hello.txt").unwrap().unwrap();
+        let meta = fs.metadata(ino).unwrap();
+        assert_eq!(meta.file_type, FsFileType::RegularFile);
+        assert!(meta.size > 0);
+    }
+
+    #[test]
+    fn read_file_hello_txt() {
+        let mut fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let ino = fs.lookup(2, b"hello.txt").unwrap().unwrap();
+        let data = fs.read_file(ino).unwrap();
+        let text = String::from_utf8_lossy(&data);
+        assert!(text.contains("Hello"));
+    }
+
+    #[test]
+    fn read_file_range_hello_txt() {
+        let mut fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let ino = fs.lookup(2, b"hello.txt").unwrap().unwrap();
+        let data = fs.read_file_range(ino, 0, 5).unwrap();
+        assert_eq!(&data, b"Hello");
+    }
+
+    #[test]
+    fn read_link_abs_link() {
+        let mut fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let ino = fs.lookup(2, b"abs-link").unwrap().unwrap();
+        let target = fs.read_link(ino).unwrap();
+        assert_eq!(String::from_utf8_lossy(&target), "/hello.txt");
+    }
+
+    #[test]
+    fn deleted_inodes_returns_entries() {
+        let mut fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let deleted = fs.deleted_inodes().unwrap();
+        assert!(deleted.len() >= 2);
+        let inos: Vec<u64> = deleted.iter().map(|d| d.ino).collect();
+        assert!(inos.contains(&21));
+        assert!(inos.contains(&22));
+    }
+
+    #[test]
+    fn recover_file_deleted() {
+        let mut fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let result = fs.recover_file(21).unwrap();
+        assert_eq!(result.ino, 21);
+    }
+
+    #[test]
+    fn timeline_has_events() {
+        let mut fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let events = fs.timeline().unwrap();
+        assert!(!events.is_empty());
+        let has_created = events.iter().any(|e| e.event_type == FsEventType::Created);
+        let has_deleted = events.iter().any(|e| e.event_type == FsEventType::Deleted);
+        assert!(has_created);
+        assert!(has_deleted);
+    }
+
+    #[test]
+    fn unallocated_blocks_returns_ranges() {
+        let mut fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let ranges = fs.unallocated_blocks().unwrap();
+        assert!(!ranges.is_empty());
+    }
+
+    #[test]
+    fn read_unallocated_returns_data() {
+        let mut fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let ranges = fs.unallocated_blocks().unwrap();
+        let data = fs.read_unallocated(&ranges[0]).unwrap();
+        assert!(!data.is_empty());
+    }
+
+    #[test]
+    fn journal_transactions_returns_entries() {
+        let mut fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let txns = fs.journal_transactions().unwrap();
+        assert!(!txns.is_empty());
+        for t in &txns {
+            assert!(t.sequence > 0);
+        }
+    }
+
+    #[test]
+    fn fs_info_returns_json() {
+        let fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let info = fs.fs_info().unwrap();
+        assert_eq!(info["filesystem"], "ext4");
+        assert!(info["block_size"].as_u64().unwrap() > 0);
+    }
+
+    #[test]
+    fn block_size_is_4096() {
+        let fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        assert_eq!(fs.block_size(), 4096);
+    }
+
+    #[test]
+    fn dir_entries_have_correct_file_types() {
+        let mut fs = match open_forensic_fs() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let entries = fs.read_dir(2).unwrap();
+        let hello = entries.iter().find(|e| e.name_str() == "hello.txt").unwrap();
+        assert_eq!(hello.file_type, FsFileType::RegularFile);
+        let subdir = entries.iter().find(|e| e.name_str() == "subdir").unwrap();
+        assert_eq!(subdir.file_type, FsFileType::Directory);
+    }
+}
