@@ -284,6 +284,69 @@ mod tests {
     }
 
     #[test]
+    fn save_persists_overlay_changes() {
+        let base = tmp_dir("save_persist");
+        let image = base.join("test.img");
+        fs::write(&image, b"image data").unwrap();
+
+        let session_dir = base.join("session");
+        let mut session = Session::create(&session_dir, &image).unwrap();
+
+        // Modify overlay
+        session.overlay.deleted.push(42);
+        session.overlay.modified.insert(100, "ino_100".to_string());
+        session.save().unwrap();
+
+        // Reload and verify
+        let resumed = Session::resume(&session_dir, &image).unwrap();
+        assert!(resumed.overlay.deleted.contains(&42));
+        assert_eq!(resumed.overlay.modified.get(&100).unwrap(), "ino_100");
+
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn overlay_file_path_construction() {
+        let base = tmp_dir("path_construct");
+        let image = base.join("test.img");
+        fs::write(&image, b"image").unwrap();
+
+        let session_dir = base.join("session");
+        let session = Session::create(&session_dir, &image).unwrap();
+
+        let path = session.overlay_file_path("file1");
+        assert!(path.ends_with("overlay/file1"));
+
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn export_import_session_roundtrip() {
+        let base = tmp_dir("export_import");
+        let image = base.join("test.img");
+        fs::write(&image, b"image for export").unwrap();
+
+        // Create session with overlay data
+        let session_dir = base.join("session");
+        let session = Session::create(&session_dir, &image).unwrap();
+        session.write_overlay_file("test_file", b"overlay data").unwrap();
+
+        // Export
+        let tarball = base.join("export.tar.gz");
+        export_session(&session_dir, &tarball).unwrap();
+        assert!(tarball.exists());
+
+        // Import to new location
+        let import_dir = base.join("imported");
+        import_session(&tarball, &import_dir).unwrap();
+
+        // Verify session.json exists in imported dir
+        assert!(import_dir.join("session.json").exists());
+
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
     fn overlay_file_roundtrip() {
         let base = tmp_dir("overlay_rt");
         let image = base.join("fake.img");

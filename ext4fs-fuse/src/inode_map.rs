@@ -129,6 +129,27 @@ mod tests {
     }
 
     #[test]
+    fn roundtrip_metadata_inode() {
+        let id = 1;
+        let fuse = metadata_ino(id);
+        assert_eq!(decode_fuse_ino(fuse), InodeNamespace::Metadata(id));
+    }
+
+    #[test]
+    fn roundtrip_journal_inode() {
+        let seq = 42;
+        let fuse = journal_ino(seq);
+        assert_eq!(decode_fuse_ino(fuse), InodeNamespace::Journal(seq));
+    }
+
+    #[test]
+    fn roundtrip_unallocated_inode() {
+        let id = 7;
+        let fuse = unallocated_ino(id);
+        assert_eq!(decode_fuse_ino(fuse), InodeNamespace::Unallocated(id));
+    }
+
+    #[test]
     fn namespaces_do_not_overlap() {
         // Verify that max realistic ext4 inode in ro/ doesn't collide with rw/
         let max_ro = ro_ino(9_000_000);
