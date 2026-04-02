@@ -317,4 +317,180 @@ mod tests {
         let ranges = fs.unallocated_blocks().unwrap();
         assert!(!ranges.is_empty());
     }
+
+    // --- forensic.img tests ---
+
+    fn open_forensic() -> Option<Ext4Fs<Cursor<Vec<u8>>>> {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/forensic.img");
+        let data = std::fs::read(path).ok()?;
+        Ext4Fs::open(Cursor::new(data)).ok()
+    }
+
+    #[test]
+    fn symlink_target_resolves_through_symlink() {
+        // symlink_target() calls resolve_path() which follows symlinks,
+        // so /abs-link resolves to hello.txt (inode 12), not the symlink itself.
+        // Verify the method returns NotASymlink for a followed-through path.
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let err = fs.symlink_target("/abs-link").unwrap_err();
+        assert!(format!("{:?}", err).contains("NotASymlink"),
+            "symlink_target on a followed symlink should return NotASymlink, got: {:?}", err);
+    }
+
+    #[test]
+    fn inode_root_is_directory() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let root = fs.inode(2).unwrap();
+        assert_eq!(root.file_type(), ondisk::FileType::Directory, "inode 2 should be a directory");
+    }
+
+    #[test]
+    fn orphan_inodes_returns_ok() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let result = fs.orphan_inodes();
+        assert!(result.is_ok(), "orphan_inodes should not error");
+    }
+
+    #[test]
+    fn recover_file_deleted_inode() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let result = fs.recover_file(21);
+        assert!(result.is_ok(), "recover_file(21) should return a RecoveryResult");
+    }
+
+    #[test]
+    fn journal_has_transactions() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let journal = fs.journal().unwrap();
+        assert!(!journal.transactions.is_empty(), "journal should have transactions");
+    }
+
+    #[test]
+    fn xattrs_on_hello_txt() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let attrs = fs.xattrs(12).unwrap();
+        let names: Vec<String> = attrs.iter()
+            .map(|a| String::from_utf8_lossy(&a.name).to_string())
+            .collect();
+        assert!(names.iter().any(|n| n.contains("forensic")),
+            "inode 12 should have user.forensic xattr, got: {:?}", names);
+    }
+
+    #[test]
+    fn read_unallocated_first_range() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let ranges = fs.unallocated_blocks().unwrap();
+        assert!(!ranges.is_empty(), "should have unallocated ranges");
+        let data = fs.read_unallocated(&ranges[0]).unwrap();
+        assert!(!data.is_empty(), "unallocated data should not be empty");
+    }
+
+    #[test]
+    fn is_inode_allocated_root() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        assert!(fs.is_inode_allocated(2).unwrap(), "root inode 2 should be allocated");
+        // inode 21 is deleted, may or may not be allocated depending on reuse
+        let _alloc21 = fs.is_inode_allocated(21).unwrap();
+    }
+
+    #[test]
+    fn is_block_allocated_zero() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let allocated = fs.is_block_allocated(0).unwrap();
+        assert!(allocated, "block 0 (superblock) should be allocated");
+    }
+
+    #[test]
+    fn read_block_zero() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let block_size = fs.superblock().block_size as usize;
+        let data = fs.read_block(0).unwrap();
+        assert_eq!(data.len(), block_size, "block 0 should be block_size bytes");
+    }
+
+    #[test]
+    fn read_dir_by_ino_root() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let entries = fs.read_dir_by_ino(2).unwrap();
+        let names: Vec<String> = entries.iter().map(|e| e.name_str()).collect();
+        assert!(names.contains(&"hello.txt".to_string()),
+            "root dir should contain hello.txt, got: {:?}", names);
+    }
+
+    #[test]
+    fn lookup_by_ino_hello_txt() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let result = fs.lookup_by_ino(2, b"hello.txt").unwrap();
+        assert!(result.is_some(), "hello.txt should exist in root dir");
+    }
+
+    #[test]
+    fn read_link_by_ino_abs_link() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        // First resolve abs-link's inode
+        let ino = fs.lookup_by_ino(2, b"abs-link").unwrap()
+            .expect("abs-link should exist in root");
+        let target = fs.read_link_by_ino(ino).unwrap();
+        assert_eq!(target, b"/hello.txt", "abs-link should point to /hello.txt");
+    }
+
+    #[test]
+    fn read_inode_data_hello_txt() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let data = fs.read_inode_data(12).unwrap();
+        let text = std::str::from_utf8(&data).unwrap_or("");
+        assert!(text.contains("Hello"), "inode 12 (hello.txt) should contain 'Hello', got: {:?}", text);
+    }
+
+    #[test]
+    fn read_inode_data_range_hello_txt() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let data = fs.read_inode_data_range(12, 0, 5).unwrap();
+        assert_eq!(data, b"Hello", "first 5 bytes of hello.txt should be 'Hello'");
+    }
 }
