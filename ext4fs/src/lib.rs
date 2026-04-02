@@ -198,6 +198,16 @@ impl<R: Read + Seek> Ext4Fs<R> {
         forensic::slack::scan_all_slack(self.dir_reader.inode_reader_mut())
     }
 
+    /// Compute BLAKE3, SHA-256, MD5, and SHA-1 hashes for a file by inode number.
+    pub fn hash_file(&mut self, ino: u64) -> Result<forensic::FileHash> {
+        forensic::hash::hash_file(self.dir_reader.inode_reader_mut(), ino)
+    }
+
+    /// Hash all allocated regular files on the filesystem.
+    pub fn hash_all_files(&mut self) -> Result<Vec<forensic::FileHash>> {
+        forensic::hash::hash_all_files(self.dir_reader.inode_reader_mut())
+    }
+
     /// Check if a specific inode is allocated.
     pub fn is_inode_allocated(&mut self, ino: u64) -> Result<bool> {
         self.dir_reader.inode_reader_mut().is_inode_allocated(ino)
@@ -523,6 +533,26 @@ mod tests {
             .expect("forensic.img should have a non-block-aligned regular file");
         let slack = fs.slack_space(file_ino).unwrap();
         assert!(slack.is_some(), "non-block-aligned file should have slack space");
+    }
+
+    #[test]
+    fn hash_file_api() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let hash = fs.hash_file(12).unwrap();
+        assert_eq!(hash.md5.len(), 32);
+    }
+
+    #[test]
+    fn hash_all_files_api() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let hashes = fs.hash_all_files().unwrap();
+        assert!(!hashes.is_empty());
     }
 
     #[test]
