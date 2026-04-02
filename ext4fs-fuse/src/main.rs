@@ -229,6 +229,9 @@ enum Commands {
         /// Known-good hash database files for evidence/ filtering
         #[arg(long = "filter-db")]
         filter_dbs: Vec<String>,
+        /// Run as a background daemon
+        #[arg(long)]
+        daemon: bool,
     },
     /// Export session for sharing
     ExportSession {
@@ -257,6 +260,7 @@ fn main() {
             session,
             resume,
             filter_dbs,
+            daemon,
         } => {
             let file = File::open(&image).unwrap_or_else(|e| {
                 eprintln!("Cannot open {image}: {e}");
@@ -268,7 +272,7 @@ fn main() {
             });
             let fs = Box::new(Ext4ForensicFs { fs: ext4 });
             eprintln!("Mounting {image} at {mountpoint}");
-            forensic_mount::mount(fs, &mountpoint, session.as_deref(), resume, &filter_dbs)
+            forensic_mount::mount(fs, &mountpoint, session.as_deref(), resume, &filter_dbs, daemon)
                 .unwrap_or_else(|e| {
                     eprintln!("Mount failed: {e}");
                     std::process::exit(1);
