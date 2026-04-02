@@ -9,6 +9,7 @@ pub const FUSE_JOURNAL_INO: u64 = 5;
 pub const FUSE_METADATA_INO: u64 = 6;
 pub const FUSE_UNALLOCATED_INO: u64 = 7;
 pub const FUSE_SESSION_INO: u64 = 8;
+pub const FUSE_EVIDENCE_INO: u64 = 9;
 
 /// Offset added to real ext4 inodes when exposing them under ro/.
 const RO_INODE_OFFSET: u64 = 1_000;
@@ -20,8 +21,10 @@ const DELETED_INODE_OFFSET: u64 = 20_000_000;
 const METADATA_INODE_OFFSET: u64 = 30_000_000;
 /// Offset for journal/ virtual file inodes.
 const JOURNAL_INODE_OFFSET: u64 = 40_000_000;
+/// Offset for evidence/ filtered view inodes.
+const EVIDENCE_INODE_OFFSET: u64 = 50_000_000;
 /// Offset for unallocated/ virtual file inodes.
-const UNALLOCATED_INODE_OFFSET: u64 = 50_000_000;
+const UNALLOCATED_INODE_OFFSET: u64 = 60_000_000;
 
 /// Which virtual namespace a FUSE inode belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,16 +41,20 @@ pub enum InodeNamespace {
     Metadata(u64),
     /// Journal virtual file
     Journal(u64),
+    /// Evidence filtered view inode
+    Evidence(u64),
     /// Unallocated block range
     Unallocated(u64),
 }
 
 /// Convert a FUSE inode number to its namespace and real inode.
 pub fn decode_fuse_ino(ino: u64) -> InodeNamespace {
-    if ino <= FUSE_SESSION_INO {
+    if ino <= FUSE_EVIDENCE_INO {
         InodeNamespace::Virtual(ino)
     } else if ino >= UNALLOCATED_INODE_OFFSET {
         InodeNamespace::Unallocated(ino - UNALLOCATED_INODE_OFFSET)
+    } else if ino >= EVIDENCE_INODE_OFFSET {
+        InodeNamespace::Evidence(ino - EVIDENCE_INODE_OFFSET)
     } else if ino >= JOURNAL_INODE_OFFSET {
         InodeNamespace::Journal(ino - JOURNAL_INODE_OFFSET)
     } else if ino >= METADATA_INODE_OFFSET {
@@ -84,6 +91,11 @@ pub fn metadata_ino(id: u64) -> u64 {
 /// Encode a journal virtual inode.
 pub fn journal_ino(seq: u64) -> u64 {
     seq + JOURNAL_INODE_OFFSET
+}
+
+/// Encode an evidence filtered view inode.
+pub fn evidence_ino(ext4_ino: u64) -> u64 {
+    ext4_ino + EVIDENCE_INODE_OFFSET
 }
 
 /// Encode an unallocated range virtual inode.

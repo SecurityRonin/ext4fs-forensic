@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod filter;
 mod fusefs;
 mod inode_map;
 mod session;
@@ -27,6 +28,9 @@ enum Commands {
         /// Resume a previous session
         #[arg(long)]
         resume: bool,
+        /// Known-good hash database files for evidence/ filtering (NSRL, HashKeeper, or plain MD5 list)
+        #[arg(long = "filter-db")]
+        filter_dbs: Vec<String>,
     },
     /// Export session for sharing
     ExportSession {
@@ -49,7 +53,7 @@ enum Commands {
 fn main() {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Mount { image, mountpoint, session, resume } => {
+        Commands::Mount { image, mountpoint, session, resume, filter_dbs: _ } => {
             let file = std::fs::File::open(&image)
                 .unwrap_or_else(|e| {
                     eprintln!("Cannot open {image}: {e}");
