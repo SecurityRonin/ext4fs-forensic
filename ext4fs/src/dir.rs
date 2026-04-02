@@ -277,6 +277,138 @@ mod tests {
     }
 
     #[test]
+    fn inode_reader_accessor() {
+        let r = open_minimal();
+        // Verify inode_reader() returns a reference we can use to access the superblock.
+        let sb = r.inode_reader().block_reader().superblock();
+        assert!(sb.block_size > 0);
+    }
+
+    #[test]
+    fn resolve_absolute_symlink() {
+        let mut r = match open_forensic() {
+            Some(r) => r,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        // Read expected content from /hello.txt
+        let hello_ino = r.resolve_path("/hello.txt").unwrap();
+        let expected = r.inode_reader_mut().read_inode_data(hello_ino).unwrap();
+        // Resolve through absolute symlink
+        let link_ino = r.resolve_path("/abs-link").unwrap();
+        let actual = r.inode_reader_mut().read_inode_data(link_ino).unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn resolve_relative_symlink() {
+        let mut r = match open_forensic() {
+            Some(r) => r,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        let hello_ino = r.resolve_path("/hello.txt").unwrap();
+        let expected = r.inode_reader_mut().read_inode_data(hello_ino).unwrap();
+        let link_ino = r.resolve_path("/rel-link").unwrap();
+        let actual = r.inode_reader_mut().read_inode_data(link_ino).unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn resolve_deep_symlink() {
+        let mut r = match open_forensic() {
+            Some(r) => r,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        let nested_ino = r.resolve_path("/subdir/nested.txt").unwrap();
+        let expected = r.inode_reader_mut().read_inode_data(nested_ino).unwrap();
+        let link_ino = r.resolve_path("/deep-link").unwrap();
+        let actual = r.inode_reader_mut().read_inode_data(link_ino).unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn resolve_updir_symlink() {
+        let mut r = match open_forensic() {
+            Some(r) => r,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        let hello_ino = r.resolve_path("/hello.txt").unwrap();
+        let expected = r.inode_reader_mut().read_inode_data(hello_ino).unwrap();
+        let link_ino = r.resolve_path("/linkdir/up-link").unwrap();
+        let actual = r.inode_reader_mut().read_inode_data(link_ino).unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn read_link_inline() {
+        let mut r = match open_forensic() {
+            Some(r) => r,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        let link_ino = r.lookup(2, b"abs-link").unwrap().unwrap();
+        let target = r.read_link(link_ino).unwrap();
+        let target_str = String::from_utf8_lossy(&target);
+        assert_eq!(target_str, "/hello.txt");
+    }
+
+    #[test]
+    fn read_link_not_a_symlink() {
+        let mut r = match open_forensic() {
+            Some(r) => r,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        let file_ino = r.lookup(2, b"hello.txt").unwrap().unwrap();
+        let err = r.read_link(file_ino).unwrap_err();
+        assert!(matches!(err, Ext4Error::NotASymlink(_)));
+    }
+
+    #[test]
+    fn resolve_nonexistent_through_symlink() {
+        let mut r = match open_forensic() {
+            Some(r) => r,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        // Try resolving a path that doesn't exist — the symlink target is missing
+        let err = r.resolve_path("/nonexistent-link");
+        // If there's no such symlink entry, we get PathNotFound on the name itself
+        assert!(err.is_err());
+        assert!(matches!(err.unwrap_err(), Ext4Error::PathNotFound(_)));
+    }
+
+    #[test]
+    fn lookup_returns_none_for_missing_forensic() {
+        let mut r = match open_forensic() {
+            Some(r) => r,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        let result = r.lookup(2, b"does-not-exist.xyz").unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
     fn read_dir_handles_all_directory_types() {
         let mut r = match open_forensic() {
             Some(r) => r,
