@@ -336,8 +336,8 @@ mod tests {
             None => { eprintln!("skip: forensic.img not found"); return; }
         };
         let err = fs.symlink_target("/abs-link").unwrap_err();
-        assert!(format!("{:?}", err).contains("NotASymlink"),
-            "symlink_target on a followed symlink should return NotASymlink, got: {:?}", err);
+        assert!(format!("{err:?}").contains("NotASymlink"),
+            "symlink_target on a followed symlink should return NotASymlink, got: {err:?}");
     }
 
     #[test]
@@ -391,7 +391,7 @@ mod tests {
             .map(|a| String::from_utf8_lossy(&a.name).to_string())
             .collect();
         assert!(names.iter().any(|n| n.contains("forensic")),
-            "inode 12 should have user.forensic xattr, got: {:?}", names);
+            "inode 12 should have user.forensic xattr, got: {names:?}");
     }
 
     #[test]
@@ -447,7 +447,7 @@ mod tests {
         let entries = fs.read_dir_by_ino(2).unwrap();
         let names: Vec<String> = entries.iter().map(|e| e.name_str()).collect();
         assert!(names.contains(&"hello.txt".to_string()),
-            "root dir should contain hello.txt, got: {:?}", names);
+            "root dir should contain hello.txt, got: {names:?}");
     }
 
     #[test]
@@ -481,7 +481,7 @@ mod tests {
         };
         let data = fs.read_inode_data(12).unwrap();
         let text = std::str::from_utf8(&data).unwrap_or("");
-        assert!(text.contains("Hello"), "inode 12 (hello.txt) should contain 'Hello', got: {:?}", text);
+        assert!(text.contains("Hello"), "inode 12 (hello.txt) should contain 'Hello', got: {text:?}");
     }
 
     #[test]

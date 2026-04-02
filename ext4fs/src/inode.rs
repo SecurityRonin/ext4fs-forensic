@@ -509,6 +509,7 @@ impl<R: Read + Seek> InodeReader<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dir::DirReader;
     use crate::ondisk::FileType;
     use std::io::Cursor;
 
@@ -517,6 +518,26 @@ mod tests {
         let data = std::fs::read(path).expect("minimal.img required");
         let br = BlockReader::open(Cursor::new(data)).unwrap();
         InodeReader::new(br)
+    }
+
+    /// Resolve a path on minimal.img and return its inode number.
+    fn resolve_minimal(path: &str) -> u64 {
+        let img_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/minimal.img");
+        let data = std::fs::read(img_path).expect("minimal.img required");
+        let br = BlockReader::open(Cursor::new(data)).unwrap();
+        let ir = InodeReader::new(br);
+        let mut dr = DirReader::new(ir);
+        dr.resolve_path(path).unwrap()
+    }
+
+    /// Resolve a path on forensic.img and return its inode number.
+    fn resolve_forensic(path: &str) -> u64 {
+        let img_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/forensic.img");
+        let data = std::fs::read(img_path).expect("forensic.img required");
+        let br = BlockReader::open(Cursor::new(data)).unwrap();
+        let ir = InodeReader::new(br);
+        let mut dr = DirReader::new(ir);
+        dr.resolve_path(path).unwrap()
     }
 
     #[test]
@@ -568,5 +589,249 @@ mod tests {
         let data = reader.read_inode_data(2).unwrap();
         assert_eq!(data.len(), inode.size as usize);
         assert!(!data.is_empty());
+    }
+
+    // -------------------------------------------------------------------
+    // Helper: open forensic.img
+    // -------------------------------------------------------------------
+
+    fn open_forensic() -> InodeReader<Cursor<Vec<u8>>> {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/forensic.img");
+        let data = std::fs::read(path).expect("forensic.img required");
+        let br = BlockReader::open(Cursor::new(data)).unwrap();
+        InodeReader::new(br)
+    }
+
+    // -------------------------------------------------------------------
+    // 1. block_reader() and block_reader_mut() accessors
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn block_reader_accessor() {
+        let r = open_minimal();
+        let sb = r.block_reader().superblock();
+        assert!(sb.block_size >= 1024, "block size should be at least 1024");
+        assert!(sb.inodes_count > 0);
+    }
+
+    #[test]
+    fn block_reader_mut_accessor() {
+        let mut r = open_minimal();
+        let sb = r.block_reader_mut().superblock();
+        assert!(sb.block_size >= 1024);
+    }
+
+    // -------------------------------------------------------------------
+    // 2. read_inode_raw — raw bytes for inode 2
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn read_inode_raw_minimal() {
+        let mut r = open_minimal();
+        let inode_size = r.block_reader().superblock().inode_size as usize;
+        let raw = r.read_inode_raw(2).unwrap();
+        assert_eq!(raw.len(), inode_size, "raw inode length should equal inode_size");
+        // The mode field (u16 LE at offset 0) should be non-zero for root dir
+        let mode = u16::from_le_bytes([raw[0], raw[1]]);
+        assert_ne!(mode, 0, "root inode mode should be non-zero");
+    }
+
+    #[test]
+    fn read_inode_raw_out_of_range() {
+        let mut r = open_minimal();
+        assert!(r.read_inode_raw(0).is_err());
+        assert!(r.read_inode_raw(u64::MAX).is_err());
+    }
+
+    // -------------------------------------------------------------------
+    // 3. inode_block_map — hello.txt (inode 12) on minimal.img
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn inode_block_map_hello_txt() {
+        let hello_ino = resolve_minimal("/hello.txt");
+        let mut r = open_minimal();
+        let map = r.inode_block_map(hello_ino).unwrap();
+        assert!(!map.is_empty(), "hello.txt should have at least one block mapping");
+        for m in &map {
+            assert!(m.physical_block > 0, "physical block should be non-zero");
+            assert!(m.length > 0, "mapping length should be positive");
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // 4. read_inode_data_range — first 5 bytes of hello.txt
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn read_inode_data_range_hello_prefix() {
+        let hello_ino = resolve_minimal("/hello.txt");
+        let mut r = open_minimal();
+        let data = r.read_inode_data_range(hello_ino, 0, 5).unwrap();
+        assert_eq!(&data, b"Hello", "first 5 bytes of hello.txt should be 'Hello'");
+    }
+
+    #[test]
+    fn read_inode_data_range_past_eof() {
+        let hello_ino = resolve_minimal("/hello.txt");
+        let mut r = open_minimal();
+        let inode = r.read_inode(hello_ino).unwrap();
+        let data = r.read_inode_data_range(hello_ino, inode.size + 100, 10).unwrap();
+        assert!(data.is_empty(), "reading past EOF should return empty");
+    }
+
+    // -------------------------------------------------------------------
+    // 5. is_block_allocated — block 0 should be allocated
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn is_block_allocated_block_zero() {
+        let mut r = open_minimal();
+        let alloc = r.is_block_allocated(0).unwrap();
+        assert!(alloc, "block 0 (superblock) should be allocated");
+    }
+
+    // -------------------------------------------------------------------
+    // 6. iter_inodes_in_group(0) — includes root inode 2
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn iter_inodes_in_group_zero() {
+        let mut r = open_minimal();
+        let inodes = r.iter_inodes_in_group(0).unwrap();
+        assert!(!inodes.is_empty(), "group 0 should have inodes");
+        let inos: Vec<u64> = inodes.iter().map(|(ino, _)| *ino).collect();
+        assert!(inos.contains(&2), "group 0 should contain root inode 2");
+    }
+
+    // -------------------------------------------------------------------
+    // 7. iter_all_inodes — multiple inodes including inode 2
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn iter_all_inodes_includes_root() {
+        let mut r = open_minimal();
+        let all = r.iter_all_inodes().unwrap();
+        assert!(all.len() >= 2, "should return multiple inodes");
+        let inos: Vec<u64> = all.iter().map(|(ino, _)| *ino).collect();
+        assert!(inos.contains(&2), "should include root inode 2");
+    }
+
+    // -------------------------------------------------------------------
+    // 8. read_inode_data for a directory (inode 2)
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn read_inode_data_directory() {
+        let mut r = open_minimal();
+        let inode = r.read_inode(2).unwrap();
+        assert_eq!(inode.file_type(), FileType::Directory);
+        let data = r.read_inode_data(2).unwrap();
+        assert!(!data.is_empty(), "root directory data should not be empty");
+        assert_eq!(data.len(), inode.size as usize);
+    }
+
+    // -------------------------------------------------------------------
+    // 9. read_inode for various inodes
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn read_inode_hello_txt() {
+        let hello_ino = resolve_minimal("/hello.txt");
+        let mut r = open_minimal();
+        let inode = r.read_inode(hello_ino).unwrap();
+        assert_eq!(inode.file_type(), FileType::RegularFile);
+        // "Hello, ext4!" without or with trailing newline
+        assert!(
+            inode.size == 11 || inode.size == 12,
+            "hello.txt should be 11 or 12 bytes, got {}",
+            inode.size
+        );
+    }
+
+    #[test]
+    fn read_inode_lost_found() {
+        let lf_ino = resolve_minimal("/lost+found");
+        let mut r = open_minimal();
+        let inode = r.read_inode(lf_ino).unwrap();
+        assert_eq!(inode.file_type(), FileType::Directory);
+        assert!(inode.links_count >= 2, "lost+found should have at least 2 links");
+    }
+
+    // -------------------------------------------------------------------
+    // 10. read_inode_raw on forensic.img
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn read_inode_raw_forensic() {
+        let mut r = open_forensic();
+        let inode_size = r.block_reader().superblock().inode_size as usize;
+        let raw = r.read_inode_raw(2).unwrap();
+        assert_eq!(raw.len(), inode_size);
+        // Verify mode is non-zero for root dir
+        let mode = u16::from_le_bytes([raw[0], raw[1]]);
+        assert_ne!(mode, 0);
+    }
+
+    // -------------------------------------------------------------------
+    // 11. read_inode_data_range partial read on forensic.img
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn read_inode_data_range_forensic_middle() {
+        let hello_ino = resolve_forensic("/hello.txt");
+        let mut r = open_forensic();
+        // hello.txt = "Hello, forensic world!\n" (23 bytes)
+        // Read bytes 7..15 → "forensic"
+        let data = r.read_inode_data_range(hello_ino, 7, 8).unwrap();
+        assert_eq!(
+            std::str::from_utf8(&data).unwrap(),
+            "forensic",
+            "middle bytes of forensic hello.txt"
+        );
+    }
+
+    #[test]
+    fn read_inode_data_range_forensic_start() {
+        let hello_ino = resolve_forensic("/hello.txt");
+        let mut r = open_forensic();
+        let data = r.read_inode_data_range(hello_ino, 0, 5).unwrap();
+        assert_eq!(&data, b"Hello");
+    }
+
+    // -------------------------------------------------------------------
+    // 12. is_block_allocated on forensic.img — various blocks
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn is_block_allocated_forensic_block_zero() {
+        let mut r = open_forensic();
+        assert!(
+            r.is_block_allocated(0).unwrap(),
+            "block 0 should be allocated on forensic.img"
+        );
+    }
+
+    #[test]
+    fn is_block_allocated_forensic_high_block() {
+        let mut r = open_forensic();
+        // The forensic image is 32MB with 4096-byte blocks = 8192 blocks.
+        // The last block should be unallocated (unused space beyond fs data).
+        let sb = r.block_reader().superblock();
+        let total_blocks = sb.blocks_count;
+        // Check a block near the end — likely unallocated
+        if total_blocks > 100 {
+            let result = r.is_block_allocated(total_blocks - 1);
+            // Just verify it doesn't panic/error — the value depends on layout
+            assert!(result.is_ok());
+        }
+    }
+
+    #[test]
+    fn is_block_allocated_forensic_superblock_area() {
+        let mut r = open_forensic();
+        // Block 1 on a 4096-byte blocksize fs holds the superblock backup or GDT
+        let alloc = r.is_block_allocated(1).unwrap();
+        assert!(alloc, "block 1 should be allocated (GDT/superblock area)");
     }
 }
