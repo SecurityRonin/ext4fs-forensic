@@ -208,6 +208,16 @@ impl<R: Read + Seek> Ext4Fs<R> {
         forensic::hash::hash_all_files(self.dir_reader.inode_reader_mut())
     }
 
+    /// Recover deleted directory entries from rec_len gaps in a single directory.
+    pub fn recover_dir_entries(&mut self, dir_ino: u64) -> Result<Vec<forensic::RecoveredDirEntry>> {
+        forensic::dir_recovery::recover_dir_entries(self.dir_reader.inode_reader_mut(), dir_ino)
+    }
+
+    /// Recover deleted directory entries from all directories on the filesystem.
+    pub fn recover_all_dir_entries(&mut self) -> Result<Vec<forensic::RecoveredDirEntry>> {
+        forensic::dir_recovery::recover_all_dir_entries(self.dir_reader.inode_reader_mut())
+    }
+
     /// Check if a specific inode is allocated.
     pub fn is_inode_allocated(&mut self, ino: u64) -> Result<bool> {
         self.dir_reader.inode_reader_mut().is_inode_allocated(ino)
@@ -543,6 +553,26 @@ mod tests {
         };
         let hash = fs.hash_file(12).unwrap();
         assert_eq!(hash.md5.len(), 32);
+    }
+
+    #[test]
+    fn recover_dir_entries_api() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let recovered = fs.recover_dir_entries(2).unwrap();
+        let _ = recovered; // may be empty depending on kernel behavior
+    }
+
+    #[test]
+    fn recover_all_dir_entries_api() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let all = fs.recover_all_dir_entries().unwrap();
+        let _ = all;
     }
 
     #[test]
