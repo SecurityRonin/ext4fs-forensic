@@ -188,6 +188,16 @@ impl<R: Read + Seek> Ext4Fs<R> {
         forensic::carving::read_unallocated(self.dir_reader.inode_reader_mut(), range)
     }
 
+    /// Read slack space for a single file inode.
+    pub fn slack_space(&mut self, ino: u64) -> Result<Option<forensic::SlackSpace>> {
+        forensic::slack::read_slack_space(self.dir_reader.inode_reader_mut(), ino)
+    }
+
+    /// Scan all allocated regular file inodes for slack space.
+    pub fn scan_all_slack(&mut self) -> Result<Vec<forensic::SlackSpace>> {
+        forensic::slack::scan_all_slack(self.dir_reader.inode_reader_mut())
+    }
+
     /// Check if a specific inode is allocated.
     pub fn is_inode_allocated(&mut self, ino: u64) -> Result<bool> {
         self.dir_reader.inode_reader_mut().is_inode_allocated(ino)
@@ -492,5 +502,36 @@ mod tests {
         };
         let data = fs.read_inode_data_range(12, 0, 5).unwrap();
         assert_eq!(data, b"Hello", "first 5 bytes of hello.txt should be 'Hello'");
+    }
+
+    #[test]
+    fn slack_space_api() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        // Find a regular file inode with non-block-aligned size
+        let all = fs.all_inodes().unwrap();
+        let block_size = fs.superblock().block_size as u64;
+        let file_ino = all.iter()
+            .find(|(_, inode)| {
+                inode.file_type() == ondisk::FileType::RegularFile
+                    && inode.size > 0
+                    && inode.size % block_size != 0
+            })
+            .map(|(ino, _)| *ino)
+            .expect("forensic.img should have a non-block-aligned regular file");
+        let slack = fs.slack_space(file_ino).unwrap();
+        assert!(slack.is_some(), "non-block-aligned file should have slack space");
+    }
+
+    #[test]
+    fn scan_all_slack_api() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip: forensic.img not found"); return; }
+        };
+        let slacks = fs.scan_all_slack().unwrap();
+        assert!(!slacks.is_empty(), "forensic.img should have files with slack");
     }
 }
