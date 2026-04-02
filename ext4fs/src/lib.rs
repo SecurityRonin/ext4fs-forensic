@@ -208,6 +208,12 @@ impl<R: Read + Seek> Ext4Fs<R> {
         forensic::hash::hash_all_files(self.dir_reader.inode_reader_mut())
     }
 
+    /// Reconstruct the version history of an inode from the journal.
+    pub fn inode_history(&mut self, ino: u64) -> Result<Vec<forensic::HistoryVersion>> {
+        let journal = self.journal()?;
+        forensic::history::inode_history(self.dir_reader.inode_reader_mut(), &journal, ino)
+    }
+
     /// Recover deleted directory entries from rec_len gaps in a single directory.
     pub fn recover_dir_entries(&mut self, dir_ino: u64) -> Result<Vec<forensic::RecoveredDirEntry>> {
         forensic::dir_recovery::recover_dir_entries(self.dir_reader.inode_reader_mut(), dir_ino)
@@ -583,6 +589,17 @@ mod tests {
         };
         let hashes = fs.hash_all_files().unwrap();
         assert!(!hashes.is_empty());
+    }
+
+    #[test]
+    fn inode_history_api() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let versions = fs.inode_history(12).unwrap();
+        // Should not error
+        let _ = versions;
     }
 
     #[test]

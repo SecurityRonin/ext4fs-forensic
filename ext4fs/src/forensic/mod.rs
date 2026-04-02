@@ -9,6 +9,7 @@ pub mod carving;
 pub mod hash;
 pub mod slack;
 pub mod dir_recovery;
+pub mod history;
 
 pub use deleted::*;
 pub use journal::*;
@@ -19,3 +20,4 @@ pub use carving::*;
 pub use hash::FileHash;
 pub use slack::SlackSpace;
 pub use dir_recovery::RecoveredDirEntry;
+pub use history::InodeVersion as HistoryVersion;
