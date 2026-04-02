@@ -1592,6 +1592,7 @@ impl Filesystem for Ext4FuseFs {
         self.unlink(_req, parent, name, reply);
     }
 
+
     #[allow(clippy::too_many_arguments)]
     fn setattr(
         &mut self,
@@ -1740,6 +1741,556 @@ impl Filesystem for Ext4FuseFs {
             }
             // For non-rw inodes, setattr is not supported.
             _ => reply.error(libc::EROFS),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ext4fs::ondisk::{DirEntryType, Timestamp};
+    use fuser::FileType;
+    use std::time::{Duration, UNIX_EPOCH};
+
+    // -----------------------------------------------------------------------
+    // virtual_dir_attr
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn virtual_dir_attr_is_directory() {
+        let attr = virtual_dir_attr(1);
+        assert_eq!(attr.ino, 1);
+        assert_eq!(attr.kind, FileType::Directory);
+        assert_eq!(attr.perm, 0o555);
+        assert_eq!(attr.nlink, 2);
+        assert_eq!(attr.size, 0);
+        assert_eq!(attr.blocks, 0);
+        assert_eq!(attr.uid, 0);
+        assert_eq!(attr.gid, 0);
+        assert_eq!(attr.blksize, 4096);
+        assert_eq!(attr.atime, UNIX_EPOCH);
+        assert_eq!(attr.mtime, UNIX_EPOCH);
+        assert_eq!(attr.ctime, UNIX_EPOCH);
+        assert_eq!(attr.crtime, UNIX_EPOCH);
+    }
+
+    #[test]
+    fn virtual_dir_attr_preserves_ino() {
+        for ino in [1, 42, FUSE_ROOT_INO, FUSE_DELETED_INO, 999_999] {
+            assert_eq!(virtual_dir_attr(ino).ino, ino);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // virtual_file_attr
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn virtual_file_attr_regular() {
+        let attr = virtual_file_attr(100, 4096);
+        assert_eq!(attr.ino, 100);
+        assert_eq!(attr.kind, FileType::RegularFile);
+        assert_eq!(attr.perm, 0o444);
+        assert_eq!(attr.nlink, 1);
+        assert_eq!(attr.size, 4096);
+        assert_eq!(attr.blocks, 8); // 4096 / 512
+    }
+
+    #[test]
+    fn virtual_file_attr_zero_size() {
+        let attr = virtual_file_attr(1, 0);
+        assert_eq!(attr.size, 0);
+        assert_eq!(attr.blocks, 0);
+    }
+
+    #[test]
+    fn virtual_file_attr_non_512_aligned() {
+        // 1000 bytes -> ceil(1000/512) = 2 blocks
+        let attr = virtual_file_attr(1, 1000);
+        assert_eq!(attr.blocks, 2);
+    }
+
+    // -----------------------------------------------------------------------
+    // ts_to_systime
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn timestamp_conversion_positive() {
+        let ts = Timestamp {
+            seconds: 1_700_000_000,
+            nanoseconds: 500_000_000,
+        };
+        let st = ts_to_systime(&ts);
+        let dur = st.duration_since(UNIX_EPOCH).unwrap();
+        assert_eq!(dur.as_secs(), 1_700_000_000);
+        assert_eq!(dur.subsec_nanos(), 500_000_000);
+    }
+
+    #[test]
+    fn timestamp_zero() {
+        let ts = Timestamp {
+            seconds: 0,
+            nanoseconds: 0,
+        };
+        let st = ts_to_systime(&ts);
+        assert_eq!(st, UNIX_EPOCH);
+    }
+
+    #[test]
+    fn timestamp_negative_clamps_to_epoch() {
+        let ts = Timestamp {
+            seconds: -1,
+            nanoseconds: 0,
+        };
+        let st = ts_to_systime(&ts);
+        assert_eq!(st, UNIX_EPOCH);
+    }
+
+    #[test]
+    fn timestamp_negative_large_clamps_to_epoch() {
+        let ts = Timestamp {
+            seconds: -1_000_000,
+            nanoseconds: 999_999_999,
+        };
+        let st = ts_to_systime(&ts);
+        assert_eq!(st, UNIX_EPOCH);
+    }
+
+    #[test]
+    fn timestamp_epoch_plus_one_second() {
+        let ts = Timestamp {
+            seconds: 1,
+            nanoseconds: 0,
+        };
+        let st = ts_to_systime(&ts);
+        assert_eq!(st, UNIX_EPOCH + Duration::from_secs(1));
+    }
+
+    // -----------------------------------------------------------------------
+    // dir_entry_type_to_fuse
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn dir_entry_type_mapping_regular() {
+        assert_eq!(
+            dir_entry_type_to_fuse(DirEntryType::RegularFile),
+            FileType::RegularFile
+        );
+    }
+
+    #[test]
+    fn dir_entry_type_mapping_directory() {
+        assert_eq!(
+            dir_entry_type_to_fuse(DirEntryType::Directory),
+            FileType::Directory
+        );
+    }
+
+    #[test]
+    fn dir_entry_type_mapping_symlink() {
+        assert_eq!(
+            dir_entry_type_to_fuse(DirEntryType::Symlink),
+            FileType::Symlink
+        );
+    }
+
+    #[test]
+    fn dir_entry_type_mapping_chardev() {
+        assert_eq!(
+            dir_entry_type_to_fuse(DirEntryType::CharDevice),
+            FileType::CharDevice
+        );
+    }
+
+    #[test]
+    fn dir_entry_type_mapping_blockdev() {
+        assert_eq!(
+            dir_entry_type_to_fuse(DirEntryType::BlockDevice),
+            FileType::BlockDevice
+        );
+    }
+
+    #[test]
+    fn dir_entry_type_mapping_fifo() {
+        assert_eq!(
+            dir_entry_type_to_fuse(DirEntryType::Fifo),
+            FileType::NamedPipe
+        );
+    }
+
+    #[test]
+    fn dir_entry_type_mapping_socket() {
+        assert_eq!(
+            dir_entry_type_to_fuse(DirEntryType::Socket),
+            FileType::Socket
+        );
+    }
+
+    #[test]
+    fn dir_entry_type_mapping_unknown() {
+        assert_eq!(
+            dir_entry_type_to_fuse(DirEntryType::Unknown),
+            FileType::RegularFile
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // ext4_to_attr
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn ext4_to_attr_regular_file() {
+        // Build a minimal 256-byte inode buffer for a regular file with mode 0o100644
+        let mut buf = vec![0u8; 256];
+        // mode: 0x81A4 = S_IFREG (0o100000) | 0o644
+        buf[0x00] = 0xA4;
+        buf[0x01] = 0x81;
+        // size_lo = 100
+        buf[0x04] = 100;
+        // links_count = 1
+        buf[0x1A] = 1;
+        // extra_isize = 32 (at offset 0x80 in extended area, i.e. buf[0x80..0x82])
+        buf[0x80] = 32;
+
+        let inode = ext4fs::ondisk::Inode::parse(&buf, 256).unwrap();
+        let attr = ext4_to_attr(1012, &inode);
+        assert_eq!(attr.ino, 1012);
+        assert_eq!(attr.size, 100);
+        assert_eq!(attr.kind, FileType::RegularFile);
+        assert_eq!(attr.nlink, 1);
+        assert_eq!(attr.perm, 0o644);
+    }
+
+    #[test]
+    fn ext4_to_attr_directory() {
+        let mut buf = vec![0u8; 256];
+        // mode: 0x41ED = S_IFDIR (0o40000) | 0o755
+        buf[0x00] = 0xED;
+        buf[0x01] = 0x41;
+        // links_count = 3
+        buf[0x1A] = 3;
+        buf[0x80] = 32;
+
+        let inode = ext4fs::ondisk::Inode::parse(&buf, 256).unwrap();
+        let attr = ext4_to_attr(2000, &inode);
+        assert_eq!(attr.kind, FileType::Directory);
+        assert_eq!(attr.nlink, 3);
+        assert_eq!(attr.perm, 0o755);
+    }
+
+    #[test]
+    fn ext4_to_attr_symlink() {
+        let mut buf = vec![0u8; 256];
+        // mode: 0xA1FF = S_IFLNK (0o120000) | 0o777
+        buf[0x00] = 0xFF;
+        buf[0x01] = 0xA1;
+        buf[0x1A] = 1;
+        buf[0x80] = 32;
+
+        let inode = ext4fs::ondisk::Inode::parse(&buf, 256).unwrap();
+        let attr = ext4_to_attr(3000, &inode);
+        assert_eq!(attr.kind, FileType::Symlink);
+        assert_eq!(attr.perm, 0o777);
+    }
+
+    #[test]
+    fn ext4_to_attr_blocks_calculation() {
+        let mut buf = vec![0u8; 256];
+        buf[0x00] = 0xA4;
+        buf[0x01] = 0x81; // regular file
+        // size_lo = 1000 (0x03E8)
+        buf[0x04] = 0xE8;
+        buf[0x05] = 0x03;
+        buf[0x1A] = 1;
+        buf[0x80] = 32;
+
+        let inode = ext4fs::ondisk::Inode::parse(&buf, 256).unwrap();
+        let attr = ext4_to_attr(42, &inode);
+        assert_eq!(attr.size, 1000);
+        // blocks = ceil(1000/512) = 2
+        assert_eq!(attr.blocks, 2);
+    }
+
+    #[test]
+    fn ext4_to_attr_blksize_always_4096() {
+        let mut buf = vec![0u8; 256];
+        buf[0x00] = 0xA4;
+        buf[0x01] = 0x81;
+        buf[0x1A] = 1;
+        buf[0x80] = 32;
+
+        let inode = ext4fs::ondisk::Inode::parse(&buf, 256).unwrap();
+        let attr = ext4_to_attr(1, &inode);
+        assert_eq!(attr.blksize, 4096);
+    }
+
+    // -----------------------------------------------------------------------
+    // Ext4FuseFs::overlay_created_attr (associated fn, not &self)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn overlay_created_attr_regular_file() {
+        let attr = Ext4FuseFs::overlay_created_attr(999, 512, false);
+        assert_eq!(attr.ino, 999);
+        assert_eq!(attr.size, 512);
+        assert_eq!(attr.kind, FileType::RegularFile);
+        assert_eq!(attr.perm, 0o644);
+        assert_eq!(attr.nlink, 1);
+        assert_eq!(attr.blocks, 1);
+    }
+
+    #[test]
+    fn overlay_created_attr_directory() {
+        let attr = Ext4FuseFs::overlay_created_attr(888, 0, true);
+        assert_eq!(attr.kind, FileType::Directory);
+        assert_eq!(attr.perm, 0o755);
+    }
+
+    // -----------------------------------------------------------------------
+    // Ext4FuseFs helper methods (static/associated)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn modified_overlay_id_format() {
+        assert_eq!(Ext4FuseFs::modified_overlay_id(42), "ino_42");
+        assert_eq!(Ext4FuseFs::modified_overlay_id(0), "ino_0");
+        assert_eq!(
+            Ext4FuseFs::modified_overlay_id(9_999_999),
+            "ino_9999999"
+        );
+    }
+
+    #[test]
+    fn created_overlay_id_format() {
+        assert_eq!(Ext4FuseFs::created_overlay_id(1), "new_1");
+        assert_eq!(Ext4FuseFs::created_overlay_id(0), "new_0");
+    }
+
+    // -----------------------------------------------------------------------
+    // Ext4FuseFs::new + instance methods (require a real image)
+    // -----------------------------------------------------------------------
+
+    fn open_test_fs() -> Option<Ext4FuseFs> {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/forensic.img");
+        let file = std::fs::File::open(path).ok()?;
+        let fs = ext4fs::Ext4Fs::open(file).ok()?;
+        Some(Ext4FuseFs::new(fs, None))
+    }
+
+    #[test]
+    fn new_creates_instance_no_session() {
+        let fuse_fs = match open_test_fs() {
+            Some(f) => f,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        assert!(!fuse_fs.has_session());
+    }
+
+    #[test]
+    fn alloc_overlay_ino_increments() {
+        let fuse_fs = match open_test_fs() {
+            Some(f) => f,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        let first = fuse_fs.alloc_overlay_ino();
+        let second = fuse_fs.alloc_overlay_ino();
+        assert_eq!(first, 1);
+        assert_eq!(second, 2);
+    }
+
+    #[test]
+    fn rw_parent_to_ext4_root() {
+        let fuse_fs = match open_test_fs() {
+            Some(f) => f,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        // FUSE_RW_INO maps to ext4 root (inode 2)
+        assert_eq!(fuse_fs.rw_parent_to_ext4(FUSE_RW_INO), Some(2));
+    }
+
+    #[test]
+    fn rw_parent_to_ext4_rw_namespace() {
+        let fuse_fs = match open_test_fs() {
+            Some(f) => f,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        // An rw-encoded inode should decode back
+        let fuse_ino = rw_ino(42);
+        assert_eq!(fuse_fs.rw_parent_to_ext4(fuse_ino), Some(42));
+    }
+
+    #[test]
+    fn rw_parent_to_ext4_non_rw_returns_none() {
+        let fuse_fs = match open_test_fs() {
+            Some(f) => f,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        // An ro-encoded inode should not map
+        let fuse_ino = ro_ino(42);
+        assert_eq!(fuse_fs.rw_parent_to_ext4(fuse_ino), None);
+    }
+
+    #[test]
+    fn is_whiteout_without_session() {
+        let fuse_fs = match open_test_fs() {
+            Some(f) => f,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        // No session means nothing is whiteout
+        assert!(!fuse_fs.is_whiteout(42));
+    }
+
+    // -----------------------------------------------------------------------
+    // Lazy cache loading
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn ensure_deleted_cache_loads() {
+        let fuse_fs = match open_test_fs() {
+            Some(f) => f,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        assert!(fuse_fs.deleted_cache.borrow().is_none());
+        fuse_fs.ensure_deleted_cache();
+        assert!(fuse_fs.deleted_cache.borrow().is_some());
+    }
+
+    #[test]
+    fn ensure_deleted_cache_idempotent() {
+        let fuse_fs = match open_test_fs() {
+            Some(f) => f,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        fuse_fs.ensure_deleted_cache();
+        let len1 = fuse_fs
+            .deleted_cache
+            .borrow()
+            .as_ref()
+            .map(|v| v.len())
+            .unwrap_or(0);
+        fuse_fs.ensure_deleted_cache();
+        let len2 = fuse_fs
+            .deleted_cache
+            .borrow()
+            .as_ref()
+            .map(|v| v.len())
+            .unwrap_or(0);
+        assert_eq!(len1, len2);
+    }
+
+    #[test]
+    fn ensure_journal_cache_loads() {
+        let fuse_fs = match open_test_fs() {
+            Some(f) => f,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        assert!(fuse_fs.journal_cache.borrow().is_none());
+        fuse_fs.ensure_journal_cache();
+        assert!(fuse_fs.journal_cache.borrow().is_some());
+    }
+
+    #[test]
+    fn ensure_metadata_cache_loads() {
+        let fuse_fs = match open_test_fs() {
+            Some(f) => f,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        assert!(fuse_fs.metadata_cache.borrow().is_none());
+        fuse_fs.ensure_metadata_cache();
+        let cache = fuse_fs.metadata_cache.borrow();
+        let mc = cache.as_ref().unwrap();
+        assert!(!mc.superblock_json.is_empty());
+        // superblock_json should be valid JSON
+        let _: serde_json::Value =
+            serde_json::from_slice(&mc.superblock_json).expect("superblock.json should be valid JSON");
+    }
+
+    #[test]
+    fn ensure_unallocated_cache_loads() {
+        let fuse_fs = match open_test_fs() {
+            Some(f) => f,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        assert!(fuse_fs.unallocated_cache.borrow().is_none());
+        fuse_fs.ensure_unallocated_cache();
+        assert!(fuse_fs.unallocated_cache.borrow().is_some());
+    }
+
+    #[test]
+    fn find_created_by_name_no_session() {
+        let fuse_fs = match open_test_fs() {
+            Some(f) => f,
+            None => {
+                eprintln!("skip: forensic.img not found");
+                return;
+            }
+        };
+        // No session, should return None
+        assert!(fuse_fs.find_created_by_name(2, b"test.txt").is_none());
+    }
+
+    // -----------------------------------------------------------------------
+    // VIRTUAL_DIRS constant
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn virtual_dirs_has_expected_entries() {
+        assert_eq!(VIRTUAL_DIRS.len(), 7);
+        assert!(VIRTUAL_DIRS.iter().any(|(_, name)| *name == "ro"));
+        assert!(VIRTUAL_DIRS.iter().any(|(_, name)| *name == "rw"));
+        assert!(VIRTUAL_DIRS.iter().any(|(_, name)| *name == "deleted"));
+        assert!(VIRTUAL_DIRS.iter().any(|(_, name)| *name == "journal"));
+        assert!(VIRTUAL_DIRS.iter().any(|(_, name)| *name == "metadata"));
+        assert!(VIRTUAL_DIRS.iter().any(|(_, name)| *name == "unallocated"));
+        assert!(VIRTUAL_DIRS.iter().any(|(_, name)| *name == "session"));
+    }
+
+    #[test]
+    fn virtual_dirs_ino_matches_constants() {
+        for &(ino, name) in VIRTUAL_DIRS {
+            match name {
+                "ro" => assert_eq!(ino, FUSE_RO_INO),
+                "rw" => assert_eq!(ino, FUSE_RW_INO),
+                "deleted" => assert_eq!(ino, FUSE_DELETED_INO),
+                "journal" => assert_eq!(ino, FUSE_JOURNAL_INO),
+                "metadata" => assert_eq!(ino, FUSE_METADATA_INO),
+                "unallocated" => assert_eq!(ino, FUSE_UNALLOCATED_INO),
+                "session" => assert_eq!(ino, FUSE_SESSION_INO),
+                _ => panic!("unexpected virtual dir: {name}"),
+            }
         }
     }
 }
