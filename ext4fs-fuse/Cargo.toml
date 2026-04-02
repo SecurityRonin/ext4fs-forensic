@@ -7,11 +7,6 @@ license = "MIT"
 
 [dependencies]
 ext4fs = { path = "../ext4fs" }
-fuser = "0.15"
+forensic-mount = { path = "../../4n6mount" }
 clap = { version = "4", features = ["derive"] }
-serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sha2 = "0.10"
-md-5 = "0.10"
-rusqlite = { version = "0.31", features = ["bundled"] }
-libc = "0.2"
