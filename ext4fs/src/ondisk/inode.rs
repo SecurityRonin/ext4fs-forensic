@@ -491,6 +491,53 @@ mod tests {
     }
 
     #[test]
+    fn inode_predicate_uses_extents() {
+        let buf = make_inode_bytes(0x8180, 100);
+        let inode = Inode::parse(&buf, 256).unwrap();
+        assert!(inode.uses_extents());
+    }
+
+    #[test]
+    fn inode_predicate_has_inline_data() {
+        let mut buf = make_inode_bytes(0x8180, 100);
+        // Set INLINE_DATA flag (0x10000000)
+        let flags = 0x10000000u32;
+        buf[0x20..0x24].copy_from_slice(&flags.to_le_bytes());
+        let inode = Inode::parse(&buf, 256).unwrap();
+        assert!(inode.has_inline_data());
+        assert!(!inode.uses_extents());
+    }
+
+    #[test]
+    fn inode_predicate_has_htree() {
+        let mut buf = make_inode_bytes(0x4180, 4096); // directory
+        // Set INDEX flag (0x1000)
+        let flags = 0x1000u32;
+        buf[0x20..0x24].copy_from_slice(&flags.to_le_bytes());
+        let inode = Inode::parse(&buf, 256).unwrap();
+        assert!(inode.has_htree());
+    }
+
+    #[test]
+    fn inode_predicate_is_deleted() {
+        let mut buf = make_inode_bytes(0x8180, 100);
+        buf[0x14..0x18].copy_from_slice(&1000u32.to_le_bytes()); // dtime
+        let inode = Inode::parse(&buf, 256).unwrap();
+        assert!(inode.is_deleted());
+        assert!(!inode.is_orphan());
+    }
+
+    #[test]
+    fn inode_predicate_is_orphan() {
+        let mut buf = make_inode_bytes(0x8180, 100);
+        buf[0x1A..0x1C].copy_from_slice(&0u16.to_le_bytes()); // links_count = 0
+        // dtime stays 0
+        let inode = Inode::parse(&buf, 256).unwrap();
+        assert!(inode.is_orphan());
+        assert!(!inode.is_deleted());
+    }
+
+    #[test]
     fn reject_too_short() {
         let buf = vec![0u8; 50];
         let err = Inode::parse(&buf, 256).unwrap_err();

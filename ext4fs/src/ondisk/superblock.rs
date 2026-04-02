@@ -539,6 +539,15 @@ mod tests {
     }
 
     #[test]
+    fn has_inline_data_feature() {
+        let mut buf = minimal_superblock_bytes();
+        // Set incompat feature with INLINE_DATA (0x8000)
+        buf[0x60..0x64].copy_from_slice(&0x8000u32.to_le_bytes());
+        let sb = Superblock::parse(&buf).unwrap();
+        assert!(sb.has_inline_data());
+    }
+
+    #[test]
     fn blocks_count_64bit() {
         let mut buf = minimal_superblock_bytes();
         // Enable 64bit feature

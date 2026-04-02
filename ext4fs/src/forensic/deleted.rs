@@ -248,6 +248,22 @@ mod tests {
     }
 
     #[test]
+    fn find_orphan_inodes_on_forensic_img() {
+        let mut reader = match open_forensic() {
+            Some(r) => r,
+            None => { eprintln!("skip"); return; }
+        };
+        // Orphans: links_count==0, dtime==0, mode!=0
+        // forensic.img may or may not have orphans, but the function should not error
+        let orphans = find_orphan_inodes(&mut reader).unwrap();
+        // Verify each orphan has the expected properties
+        for o in &orphans {
+            assert_eq!(o.dtime, 0, "orphan should have dtime=0");
+            assert!((0.0..=1.0).contains(&o.recoverability));
+        }
+    }
+
+    #[test]
     fn orphan_inode_has_no_dtime() {
         // Orphan: links_count == 0, dtime == 0, mode != 0
         // This is what happens during a crash mid-deletion or unlinked-but-open files

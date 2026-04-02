@@ -312,6 +312,44 @@ mod tests {
     }
 
     #[test]
+    fn journal_superblock_feature_flags() {
+        let mut buf = vec![0u8; 1024];
+        buf[0..4].copy_from_slice(&0xC03B3998u32.to_be_bytes());
+        buf[4..8].copy_from_slice(&4u32.to_be_bytes()); // SuperblockV2
+        buf[8..12].copy_from_slice(&1u32.to_be_bytes()); // sequence
+        buf[0x0C..0x10].copy_from_slice(&1024u32.to_be_bytes()); // block_size
+        buf[0x10..0x14].copy_from_slice(&100u32.to_be_bytes()); // max_len
+        buf[0x14..0x18].copy_from_slice(&1u32.to_be_bytes()); // first_block
+        // Set feature_incompat with 64BIT and CSUM_V3
+        let features: u32 = JBD2_FEATURE_INCOMPAT_64BIT | JBD2_FEATURE_INCOMPAT_CSUM_V3;
+        buf[0x28..0x2C].copy_from_slice(&features.to_be_bytes());
+
+        let jsb = JournalSuperblock::parse(&buf).unwrap();
+        assert!(jsb.is_64bit());
+        assert!(jsb.has_csum_v3());
+        // CSUM_V2 flag is NOT set
+        assert!(!jsb.has_csum_v2());
+    }
+
+    #[test]
+    fn journal_superblock_csum_v2_only() {
+        let mut buf = vec![0u8; 1024];
+        buf[0..4].copy_from_slice(&0xC03B3998u32.to_be_bytes());
+        buf[4..8].copy_from_slice(&4u32.to_be_bytes()); // SuperblockV2
+        buf[8..12].copy_from_slice(&1u32.to_be_bytes());
+        buf[0x0C..0x10].copy_from_slice(&1024u32.to_be_bytes());
+        buf[0x10..0x14].copy_from_slice(&100u32.to_be_bytes());
+        buf[0x14..0x18].copy_from_slice(&1u32.to_be_bytes());
+        let features: u32 = JBD2_FEATURE_INCOMPAT_CSUM_V2; // CSUM_V2 only
+        buf[0x28..0x2C].copy_from_slice(&features.to_be_bytes());
+
+        let jsb = JournalSuperblock::parse(&buf).unwrap();
+        assert!(!jsb.is_64bit());
+        assert!(!jsb.has_csum_v3());
+        assert!(jsb.has_csum_v2());
+    }
+
+    #[test]
     fn parse_commit_block() {
         let mut buf = vec![0u8; 64];
         buf[0..4].copy_from_slice(&JOURNAL_MAGIC.to_be_bytes());
