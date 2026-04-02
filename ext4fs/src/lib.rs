@@ -238,6 +238,20 @@ impl<R: Read + Seek> Ext4Fs<R> {
     pub fn read_block(&mut self, block: u64) -> Result<Vec<u8>> {
         self.dir_reader.inode_reader_mut().block_reader_mut().read_block(block)
     }
+
+    /// Search for a byte pattern across filesystem blocks.
+    pub fn search_blocks(
+        &mut self,
+        pattern: &[u8],
+        scope: forensic::SearchScope,
+    ) -> Result<Vec<forensic::SearchHit>> {
+        forensic::search::search_blocks(
+            self.dir_reader.inode_reader_mut(),
+            pattern,
+            scope,
+            32, // default context bytes
+        )
+    }
 }
 
 #[cfg(test)]
@@ -610,5 +624,15 @@ mod tests {
         };
         let slacks = fs.scan_all_slack().unwrap();
         assert!(!slacks.is_empty(), "forensic.img should have files with slack");
+    }
+
+    #[test]
+    fn search_blocks_api() {
+        let mut fs = match open_forensic() {
+            Some(f) => f,
+            None => { eprintln!("skip"); return; }
+        };
+        let hits = fs.search_blocks(b"Hello", forensic::SearchScope::Allocated).unwrap();
+        assert!(!hits.is_empty());
     }
 }
