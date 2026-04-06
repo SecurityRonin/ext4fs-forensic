@@ -99,11 +99,9 @@ ext4fs = "0.1"
 This project would not exist without the foundational work of those who built the forensic analysis discipline and its tools:
 
 - **Brian Carrier** — for [The Sleuth Kit](https://www.sleuthkit.org/), [Autopsy Forensic Browser](https://www.autopsy.com/), and *File System Forensic Analysis*, which taught a generation of practitioners (including this author) how modern filesystems work at the byte level
-- **Rob T. Lee** — for [SANS FOR508](https://www.sans.org/cyber-security-courses/advanced-incident-response-threat-hunting-training/) (Advanced Incident Response, Threat Hunting, and Digital Forensics), which shaped how we think about forensic timelines, evidence handling, and incident response
+- **Rob T. Lee** — for [SANS FOR508](https://www.sans.org/cyber-security-courses/advanced-incident-response-threat-hunting-training/) (Advanced Incident Response, Threat Hunting, and Digital Forensics), which shaped how I think about forensic timelines, evidence handling, and incident response (GCFA #285)
 - **The Linux kernel ext4 developers** — for meticulous documentation of on-disk structures at [kernel.org](https://www.kernel.org/doc/html/latest/filesystems/ext4/)
 - **Theodore Ts'o and the e2fsprogs team** — for debugfs, dumpe2fs, and decades of ext4 tooling that served as our validation reference
-
-We are GCFA #285. We stand on your shoulders.
 
 ## License
 
