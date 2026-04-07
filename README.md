@@ -1,14 +1,14 @@
 # ext4fs-forensic
 
-**Forensic-grade ext4 filesystem parser. Pure safe Rust. Zero GPL.**
+**Forensic-grade ext4 filesystem parser. Pure safe Rust. MIT licensed.**
 
 Parse ext4 images with full forensic metadata — all five timestamps with nanosecond precision, deleted file recovery, journal history reconstruction, slack space analysis, and byte-level block search.
 
 ## Why this exists
 
-This project stands on the shoulders of giants. The Sleuth Kit, libext2fs, and the Linux kernel's ext4 implementation pioneered the forensic analysis of ext4 filesystems and taught the community everything we know about on-disk structures. Without their decades of work, documentation, and open source contributions, this crate could not exist. We are deeply grateful.
+This project stands on the shoulders of giants. The Sleuth Kit, libext2fs, and the Linux kernel's ext4 implementation pioneered the forensic analysis of ext4 filesystems and taught the community everything we know about on-disk structures. Without their decades of work, documentation, and open source contributions, this crate could not exist.
 
-ext4fs-forensic brings those same forensic capabilities to the Rust ecosystem as a **pure safe Rust library** (`#![forbid(unsafe_code)]`). It parses every ext4 on-disk structure from first principles — no C bindings, no unsafe code, MIT licensed — making it easy to embed in modern forensic toolchains, commercial products, and court-admissible workflows.
+ext4fs-forensic brings those same forensic capabilities to the Rust ecosystem as a **pure safe Rust library** (`#![forbid(unsafe_code)]`). It parses ext4 on-disk structures from first principles — no C bindings, no unsafe code, MIT licensed — making it easy to embed in modern forensic toolchains, commercial products, and court-admissible workflows.
 
 ## What you get
 
@@ -99,7 +99,7 @@ ext4fs = "0.1"
 This project would not exist without the foundational work of those who built the forensic analysis discipline and its tools:
 
 - **Brian Carrier** — for [The Sleuth Kit](https://www.sleuthkit.org/), [Autopsy Forensic Browser](https://www.autopsy.com/), and *File System Forensic Analysis*, which taught a generation of practitioners (including this author) how modern filesystems work at the byte level
-- **Rob T. Lee** — for [SANS FOR508](https://www.sans.org/cyber-security-courses/advanced-incident-response-threat-hunting-training/) (Advanced Incident Response, Threat Hunting, and Digital Forensics), which shaped how I think about forensic timelines, evidence handling, and incident response (GCFA #285)
+- **Rob T. Lee** — for [SANS FOR508](https://www.sans.org/cyber-security-courses/advanced-incident-response-threat-hunting-training/) (Advanced Incident Response, Threat Hunting, and Digital Forensics), which shaped how I think about forensic timelines, evidence handling, and incident response
 - **The Linux kernel ext4 developers** — for meticulous documentation of on-disk structures at [kernel.org](https://www.kernel.org/doc/html/latest/filesystems/ext4/)
 - **Theodore Ts'o and the e2fsprogs team** — for debugfs, dumpe2fs, and decades of ext4 tooling that served as our validation reference
 
