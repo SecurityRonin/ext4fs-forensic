@@ -235,18 +235,220 @@ fn handle_tool(
     sessions: &mut HashMap<String, Ext4Fs<File>>,
 ) -> Result<Value, String> {
     match name {
-        "ext4fs_open" => todo!("implement ext4fs_open"),
-        "ext4fs_close" => todo!("implement ext4fs_close"),
-        "ext4fs_info" => todo!("implement ext4fs_info"),
-        "ext4fs_ls" => todo!("implement ext4fs_ls"),
-        "ext4fs_read" => todo!("implement ext4fs_read"),
-        "ext4fs_stat" => todo!("implement ext4fs_stat"),
-        "ext4fs_deleted" => todo!("implement ext4fs_deleted"),
-        "ext4fs_recover" => todo!("implement ext4fs_recover"),
-        "ext4fs_timeline" => todo!("implement ext4fs_timeline"),
-        "ext4fs_search" => todo!("implement ext4fs_search"),
-        "ext4fs_hash" => todo!("implement ext4fs_hash"),
-        "ext4fs_journal" => todo!("implement ext4fs_journal"),
+        "ext4fs_open" => {
+            let path = args
+                .get("path")
+                .and_then(|p| p.as_str())
+                .ok_or("missing 'path' argument")?;
+            let file = File::open(path).map_err(|e| format!("cannot open: {e}"))?;
+            let fs = Ext4Fs::open(file).map_err(|e| format!("cannot parse ext4: {e}"))?;
+            let session_id = uuid::Uuid::new_v4().to_string();
+            sessions.insert(session_id.clone(), fs);
+            Ok(mcp_text(&format!("Session opened: {session_id}")))
+        }
+        "ext4fs_close" => {
+            let sid = get_session_id(args)?;
+            sessions.remove(&sid);
+            Ok(mcp_text("Session closed"))
+        }
+        "ext4fs_info" => {
+            let sid = get_session_id(args)?;
+            let fs = sessions.get(&sid).ok_or("invalid session")?;
+            let sb = fs.superblock();
+            Ok(mcp_json(&json!({
+                "label": sb.label(),
+                "uuid": sb.uuid_string(),
+                "block_size": sb.block_size,
+                "blocks_count": sb.blocks_count,
+                "inodes_count": sb.inodes_count,
+                "free_blocks": sb.free_blocks,
+                "free_inodes": sb.free_inodes,
+            })))
+        }
+        "ext4fs_ls" => {
+            let sid = get_session_id(args)?;
+            let fs = sessions.get_mut(&sid).ok_or("invalid session")?;
+            let path = args.get("path").and_then(|p| p.as_str()).unwrap_or("/");
+            let entries = fs.read_dir(path).map_err(|e| e.to_string())?;
+            let list: Vec<Value> = entries
+                .iter()
+                .map(|e| {
+                    json!({
+                        "name": e.name_str(),
+                        "inode": e.inode,
+                        "type": format!("{:?}", e.file_type),
+                    })
+                })
+                .collect();
+            Ok(mcp_json(&json!(list)))
+        }
+        "ext4fs_read" => {
+            let sid = get_session_id(args)?;
+            let fs = sessions.get_mut(&sid).ok_or("invalid session")?;
+            let path = args
+                .get("path")
+                .and_then(|p| p.as_str())
+                .ok_or("missing 'path'")?;
+            let encoding = args
+                .get("encoding")
+                .and_then(|e| e.as_str())
+                .unwrap_or("text");
+            let data = fs.read_file(path).map_err(|e| e.to_string())?;
+            match encoding {
+                "base64" => Ok(mcp_text(&base64_encode(&data))),
+                _ => {
+                    let text = String::from_utf8_lossy(&data);
+                    Ok(mcp_text(&text))
+                }
+            }
+        }
+        "ext4fs_stat" => {
+            let sid = get_session_id(args)?;
+            let fs = sessions.get_mut(&sid).ok_or("invalid session")?;
+            let path = args
+                .get("path")
+                .and_then(|p| p.as_str())
+                .ok_or("missing 'path'")?;
+            let meta = fs.metadata(path).map_err(|e| e.to_string())?;
+            Ok(mcp_json(&json!({
+                "inode": meta.ino,
+                "type": format!("{:?}", meta.file_type),
+                "mode": format!("{:o}", meta.mode),
+                "uid": meta.uid,
+                "gid": meta.gid,
+                "size": meta.size,
+                "links": meta.links_count,
+                "atime": format_ts(&meta.atime),
+                "mtime": format_ts(&meta.mtime),
+                "ctime": format_ts(&meta.ctime),
+                "crtime": format_ts(&meta.crtime),
+                "allocated": meta.allocated,
+            })))
+        }
+        "ext4fs_deleted" => {
+            let sid = get_session_id(args)?;
+            let fs = sessions.get_mut(&sid).ok_or("invalid session")?;
+            let deleted = fs.deleted_inodes().map_err(|e| e.to_string())?;
+            let list: Vec<Value> = deleted
+                .iter()
+                .map(|d| {
+                    json!({
+                        "inode": d.ino,
+                        "type": format!("{:?}", d.file_type),
+                        "size": d.size,
+                        "dtime": d.dtime,
+                        "recoverability": d.recoverability,
+                    })
+                })
+                .collect();
+            Ok(mcp_json(&json!(list)))
+        }
+        "ext4fs_recover" => {
+            let sid = get_session_id(args)?;
+            let fs = sessions.get_mut(&sid).ok_or("invalid session")?;
+            let ino = args
+                .get("inode")
+                .and_then(|i| i.as_u64())
+                .ok_or("missing 'inode'")?;
+            let result = fs.recover_file(ino).map_err(|e| e.to_string())?;
+            Ok(mcp_json(&json!({
+                "inode": ino,
+                "expected_size": result.expected_size,
+                "recovered_bytes": result.recovered_size,
+                "recovery_percentage": result.recovery_percentage(),
+                "data_base64": base64_encode(&result.data),
+            })))
+        }
+        "ext4fs_timeline" => {
+            let sid = get_session_id(args)?;
+            let fs = sessions.get_mut(&sid).ok_or("invalid session")?;
+            let events = fs.timeline().map_err(|e| e.to_string())?;
+            let list: Vec<Value> = events
+                .iter()
+                .map(|e| {
+                    json!({
+                        "timestamp": format_ts(&e.timestamp),
+                        "type": format!("{:?}", e.event_type),
+                        "inode": e.inode,
+                        "size": e.size,
+                    })
+                })
+                .collect();
+            Ok(mcp_json(&json!(list)))
+        }
+        "ext4fs_search" => {
+            let sid = get_session_id(args)?;
+            let fs = sessions.get_mut(&sid).ok_or("invalid session")?;
+            let pattern = args
+                .get("pattern")
+                .and_then(|p| p.as_str())
+                .ok_or("missing 'pattern'")?;
+            let scope_str = args
+                .get("scope")
+                .and_then(|s| s.as_str())
+                .unwrap_or("all");
+            let scope = match scope_str {
+                "allocated" => ext4fs::forensic::SearchScope::Allocated,
+                "unallocated" => ext4fs::forensic::SearchScope::Unallocated,
+                _ => ext4fs::forensic::SearchScope::All,
+            };
+            let hits = fs
+                .search_blocks(pattern.as_bytes(), scope)
+                .map_err(|e| e.to_string())?;
+            let list: Vec<Value> = hits
+                .iter()
+                .take(100)
+                .map(|h| {
+                    json!({
+                        "block": h.block,
+                        "offset": h.offset,
+                        "context": String::from_utf8_lossy(&h.context),
+                    })
+                })
+                .collect();
+            Ok(mcp_json(&json!({
+                "total_hits": hits.len(),
+                "hits": list,
+            })))
+        }
+        "ext4fs_hash" => {
+            let sid = get_session_id(args)?;
+            let fs = sessions.get_mut(&sid).ok_or("invalid session")?;
+            let ino = args
+                .get("inode")
+                .and_then(|i| i.as_u64())
+                .ok_or("missing 'inode'")?;
+            let hash = fs.hash_file(ino).map_err(|e| e.to_string())?;
+            Ok(mcp_json(&json!({
+                "inode": hash.ino,
+                "size": hash.size,
+                "blake3": hash.blake3,
+                "sha256": hash.sha256,
+                "md5": hash.md5,
+                "sha1": hash.sha1,
+            })))
+        }
+        "ext4fs_journal" => {
+            let sid = get_session_id(args)?;
+            let fs = sessions.get_mut(&sid).ok_or("invalid session")?;
+            let journal = fs.journal().map_err(|e| e.to_string())?;
+            let list: Vec<Value> = journal
+                .transactions
+                .iter()
+                .map(|t| {
+                    json!({
+                        "sequence": t.sequence,
+                        "commit_time": t.commit_seconds,
+                        "mappings": t.mappings.len(),
+                        "revoked_blocks": t.revoked_blocks.len(),
+                    })
+                })
+                .collect();
+            Ok(mcp_json(&json!({
+                "block_size": journal.block_size,
+                "transactions": list,
+            })))
+        }
         _ => Err(format!("unknown tool: {name}")),
     }
 }
