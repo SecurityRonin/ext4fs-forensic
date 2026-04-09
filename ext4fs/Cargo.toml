@@ -5,7 +5,16 @@ edition = "2021"
 description = "Forensic-grade ext4 filesystem parser"
 license = "MIT"
 
+[features]
+default = []
+ewf = ["dep:ewf"]
+
 [dependencies]
 bitflags = "2"
 blazehash = { version = "0.2", default-features = false }
 crc = "3"
+
+[dependencies.ewf]
+version = "0.2"
+path = "../../ewf/ewf"
+optional = true

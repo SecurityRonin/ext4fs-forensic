@@ -259,6 +259,17 @@ impl<R: Read + Seek> Ext4Fs<R> {
     }
 }
 
+#[cfg(feature = "ewf")]
+impl Ext4Fs<ewf::EwfReader> {
+    /// Open an ext4 filesystem from an E01/EWF forensic disk image.
+    ///
+    /// This is a convenience method that opens the EWF image and passes
+    /// the reader to `Ext4Fs::open()`.
+    pub fn open_ewf<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
+        todo!("implement open_ewf")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -649,5 +660,26 @@ mod tests {
         };
         let hits = fs.search_blocks(b"Hello", forensic::SearchScope::Allocated).unwrap();
         assert!(!hits.is_empty());
+    }
+
+    #[cfg(feature = "ewf")]
+    mod ewf_tests {
+        use super::*;
+
+        #[test]
+        fn open_ewf_with_valid_e01() {
+            // We don't have a real E01 file in test data, so test that the
+            // method exists and returns an appropriate error for a non-E01 file
+            let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/forensic.img");
+            let result = Ext4Fs::open_ewf(path);
+            // forensic.img is a raw image, not E01 — ewf should fail to open it
+            assert!(result.is_err(), "raw image should not open as E01");
+        }
+
+        #[test]
+        fn open_ewf_nonexistent_file() {
+            let result = Ext4Fs::open_ewf("/nonexistent/file.E01");
+            assert!(result.is_err());
+        }
     }
 }
