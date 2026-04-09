@@ -266,7 +266,11 @@ impl Ext4Fs<ewf::EwfReader> {
     /// This is a convenience method that opens the EWF image and passes
     /// the reader to `Ext4Fs::open()`.
     pub fn open_ewf<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
-        todo!("implement open_ewf")
+        let reader = ewf::EwfReader::open(path.as_ref())
+            .map_err(|e| error::Ext4Error::Io(
+                std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
+            ))?;
+        Self::open(reader)
     }
 }
 
