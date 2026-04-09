@@ -1,3 +1,3 @@
 [workspace]
-members = ["ext4fs", "ext4fs-fuse"]
+members = ["ext4fs", "ext4fs-fuse", "ext4fs-cli"]
 resolver = "2"

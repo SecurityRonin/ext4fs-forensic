@@ -1,0 +1,17 @@
+[package]
+name = "ext4fs-cli"
+version = "0.1.0"
+edition = "2021"
+description = "CLI and MCP server for ext4 forensic analysis"
+license = "MIT"
+
+[[bin]]
+name = "ext4fs"
+path = "src/main.rs"
+
+[dependencies]
+ext4fs = { path = "../ext4fs" }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
