@@ -50,8 +50,7 @@ pub fn recover_dir_entries<R: Read + Seek>(
                 // Try to parse a deleted entry from the gap
                 if gap_end - gap_start >= 8 {
                     let gap = &data[gap_start..gap_end];
-                    let del_inode =
-                        u32::from_le_bytes([gap[0], gap[1], gap[2], gap[3]]);
+                    let del_inode = u32::from_le_bytes([gap[0], gap[1], gap[2], gap[3]]);
                     let del_name_len = gap[6] as usize;
                     let del_file_type_raw = gap[7];
 
@@ -67,9 +66,7 @@ pub fn recover_dir_entries<R: Read + Seek>(
                         .to_string();
 
                         // Skip if name looks like garbage (control chars)
-                        if del_name
-                            .chars()
-                            .all(|c| !c.is_control() || c == '\0')
+                        if del_name.chars().all(|c| !c.is_control() || c == '\0')
                             && !del_name.is_empty()
                         {
                             let file_type = DirEntryType::from(del_file_type_raw);
@@ -135,17 +132,14 @@ mod tests {
 
     #[test]
     fn recover_deleted_entries_in_forensic_root() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         // Root dir (ino 2) had deleted-file.txt and deleted-large.txt removed
         let recovered = recover_dir_entries(&mut reader, 2).unwrap();
         let names: Vec<&str> = recovered.iter().map(|e| e.name.as_str()).collect();
-        eprintln!("Recovered entries: {:?}", names);
+        eprintln!("Recovered entries: {names:?}");
         // We expect to find the deleted filenames in the gaps
         // This may or may not work depending on whether the kernel zeroed the entries
         // Either way, the function should not error
@@ -153,12 +147,9 @@ mod tests {
 
     #[test]
     fn no_deleted_entries_in_clean_dir() {
-        let mut reader = match open_minimal() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip");
-                return;
-            }
+        let mut reader = if let Some(r) = open_minimal() { r } else {
+            eprintln!("skip");
+            return;
         };
         // minimal.img subdir (no deletions) — should have few/no recovered entries
         let recovered = recover_dir_entries(&mut reader, 2).unwrap();
@@ -168,12 +159,9 @@ mod tests {
 
     #[test]
     fn recover_all_returns_without_error() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         let all = recover_all_dir_entries(&mut reader).unwrap();
         eprintln!("Total recovered entries across all dirs: {}", all.len());

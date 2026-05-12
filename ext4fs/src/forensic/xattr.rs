@@ -17,10 +17,7 @@ pub struct Xattr {
 ///
 /// Reads both inline xattrs stored in the inode body (ibody) and
 /// block-stored xattrs from `i_file_acl`.
-pub fn read_xattrs<R: Read + Seek>(
-    reader: &mut InodeReader<R>,
-    ino: u64,
-) -> Result<Vec<Xattr>> {
+pub fn read_xattrs<R: Read + Seek>(reader: &mut InodeReader<R>, ino: u64) -> Result<Vec<Xattr>> {
     let inode = reader.read_inode(ino)?;
     let mut xattrs = Vec::new();
 
@@ -33,8 +30,10 @@ pub fn read_xattrs<R: Read + Seek>(
         if ibody_region.len() >= 4 {
             // Check for and skip the 4-byte inline xattr magic (0xEA020000)
             let magic = u32::from_le_bytes([
-                ibody_region[0], ibody_region[1],
-                ibody_region[2], ibody_region[3],
+                ibody_region[0],
+                ibody_region[1],
+                ibody_region[2],
+                ibody_region[3],
             ]);
             let entry_start = if magic == XATTR_MAGIC { 4 } else { 0 };
             let mut offset = entry_start;
@@ -74,7 +73,9 @@ pub fn read_xattrs<R: Read + Seek>(
         if let Ok(_header) = XattrBlockHeader::parse(&block_data) {
             let mut offset = 32; // skip header
             while offset + 16 <= block_data.len() {
-                if block_data[offset] == 0 { break; }
+                if block_data[offset] == 0 {
+                    break;
+                }
                 match XattrEntry::parse(&block_data[offset..]) {
                     Ok(entry) => {
                         let value_start = entry.value_offset as usize;
@@ -117,9 +118,9 @@ mod tests {
 
     #[test]
     fn read_xattrs_from_file() {
-        let mut reader = match open_minimal() {
-            Some(r) => r,
-            None => { eprintln!("skip: minimal.img not found"); return; }
+        let mut reader = if let Some(r) = open_minimal() { r } else {
+            eprintln!("skip: minimal.img not found");
+            return;
         };
         let xattrs = read_xattrs(&mut reader, 2).unwrap();
         let _ = xattrs;
@@ -134,9 +135,9 @@ mod tests {
 
     #[test]
     fn read_xattrs_for_hello_txt() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
 
         // Read the inode to inspect file_acl
@@ -158,9 +159,9 @@ mod tests {
 
     #[test]
     fn read_xattrs_for_root_inode() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
 
         let xattrs = read_xattrs(&mut reader, 2).unwrap();
@@ -169,13 +170,14 @@ mod tests {
 
     #[test]
     fn read_inline_xattrs_for_hello_txt() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         // hello.txt is inode 12 in forensic.img
         let xattrs = read_xattrs(&mut reader, 12).unwrap();
-        let names: Vec<String> = xattrs.iter()
+        let names: Vec<String> = xattrs
+            .iter()
             .map(|x| String::from_utf8_lossy(&x.name).to_string())
             .collect();
         assert!(
@@ -190,12 +192,13 @@ mod tests {
 
     #[test]
     fn inline_xattr_values_are_correct() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let xattrs = read_xattrs(&mut reader, 12).unwrap();
-        let forensic_xattr = xattrs.iter()
+        let forensic_xattr = xattrs
+            .iter()
             .find(|x| x.name == b"forensic")
             .expect("user.forensic xattr not found");
         assert_eq!(
@@ -203,12 +206,10 @@ mod tests {
             "evidence-tag"
         );
 
-        let case_xattr = xattrs.iter()
+        let case_xattr = xattrs
+            .iter()
             .find(|x| x.name == b"case_id")
             .expect("user.case_id xattr not found");
-        assert_eq!(
-            String::from_utf8_lossy(&case_xattr.value),
-            "2026-0401"
-        );
+        assert_eq!(String::from_utf8_lossy(&case_xattr.value), "2026-0401");
     }
 }

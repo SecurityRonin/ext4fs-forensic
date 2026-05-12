@@ -1,11 +1,11 @@
 #![forbid(unsafe_code)]
 
-pub mod error;
-pub mod ondisk;
 pub mod block;
-pub mod inode;
 pub mod dir;
+pub mod error;
 pub mod forensic;
+pub mod inode;
+pub mod ondisk;
 
 use block::BlockReader;
 use dir::DirReader;
@@ -133,7 +133,9 @@ impl<R: Read + Seek> Ext4Fs<R> {
 
     /// Read a range of file data by inode number.
     pub fn read_inode_data_range(&mut self, ino: u64, offset: u64, len: usize) -> Result<Vec<u8>> {
-        self.dir_reader.inode_reader_mut().read_inode_data_range(ino, offset, len)
+        self.dir_reader
+            .inode_reader_mut()
+            .read_inode_data_range(ino, offset, len)
     }
 
     // --- Tier 2: Forensic access ---
@@ -215,7 +217,10 @@ impl<R: Read + Seek> Ext4Fs<R> {
     }
 
     /// Recover deleted directory entries from rec_len gaps in a single directory.
-    pub fn recover_dir_entries(&mut self, dir_ino: u64) -> Result<Vec<forensic::RecoveredDirEntry>> {
+    pub fn recover_dir_entries(
+        &mut self,
+        dir_ino: u64,
+    ) -> Result<Vec<forensic::RecoveredDirEntry>> {
         forensic::dir_recovery::recover_dir_entries(self.dir_reader.inode_reader_mut(), dir_ino)
     }
 
@@ -236,7 +241,10 @@ impl<R: Read + Seek> Ext4Fs<R> {
 
     /// Read a raw block by number.
     pub fn read_block(&mut self, block: u64) -> Result<Vec<u8>> {
-        self.dir_reader.inode_reader_mut().block_reader_mut().read_block(block)
+        self.dir_reader
+            .inode_reader_mut()
+            .block_reader_mut()
+            .read_block(block)
     }
 
     /// Verify all superblock backups against the primary.
@@ -266,10 +274,12 @@ impl Ext4Fs<ewf::EwfReader> {
     /// This is a convenience method that opens the EWF image and passes
     /// the reader to `Ext4Fs::open()`.
     pub fn open_ewf<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
-        let reader = ewf::EwfReader::open(path.as_ref())
-            .map_err(|e| error::Ext4Error::Io(
-                std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
-            ))?;
+        let reader = ewf::EwfReader::open(path.as_ref()).map_err(|e| {
+            error::Ext4Error::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                e.to_string(),
+            ))
+        })?;
         Self::open(reader)
     }
 }
@@ -287,18 +297,18 @@ mod tests {
 
     #[test]
     fn open_and_read_superblock() {
-        let fs = match open_minimal() {
-            Some(f) => f,
-            None => { eprintln!("skip"); return; }
+        let fs = if let Some(f) = open_minimal() { f } else {
+            eprintln!("skip");
+            return;
         };
         assert_eq!(fs.superblock().magic, 0xEF53);
     }
 
     #[test]
     fn read_file_by_path() {
-        let mut fs = match open_minimal() {
-            Some(f) => f,
-            None => { eprintln!("skip"); return; }
+        let mut fs = if let Some(f) = open_minimal() { f } else {
+            eprintln!("skip");
+            return;
         };
         let data = fs.read_file("/hello.txt").unwrap();
         assert_eq!(data, b"Hello, ext4!");
@@ -306,9 +316,9 @@ mod tests {
 
     #[test]
     fn read_nested_file() {
-        let mut fs = match open_minimal() {
-            Some(f) => f,
-            None => { eprintln!("skip"); return; }
+        let mut fs = if let Some(f) = open_minimal() { f } else {
+            eprintln!("skip");
+            return;
         };
         let data = fs.read_file("/subdir/nested.txt").unwrap();
         assert_eq!(data, b"Nested file");
@@ -316,21 +326,21 @@ mod tests {
 
     #[test]
     fn list_root_directory() {
-        let mut fs = match open_minimal() {
-            Some(f) => f,
-            None => { eprintln!("skip"); return; }
+        let mut fs = if let Some(f) = open_minimal() { f } else {
+            eprintln!("skip");
+            return;
         };
         let entries = fs.read_dir("/").unwrap();
-        let names: Vec<String> = entries.iter().map(|e| e.name_str()).collect();
+        let names: Vec<String> = entries.iter().map(super::ondisk::dir_entry::DirEntry::name_str).collect();
         assert!(names.contains(&"hello.txt".to_string()));
         assert!(names.contains(&"subdir".to_string()));
     }
 
     #[test]
     fn file_metadata() {
-        let mut fs = match open_minimal() {
-            Some(f) => f,
-            None => { eprintln!("skip"); return; }
+        let mut fs = if let Some(f) = open_minimal() { f } else {
+            eprintln!("skip");
+            return;
         };
         let meta = fs.metadata("/hello.txt").unwrap();
         assert_eq!(meta.file_type, ondisk::FileType::RegularFile);
@@ -340,9 +350,9 @@ mod tests {
 
     #[test]
     fn exists_check() {
-        let mut fs = match open_minimal() {
-            Some(f) => f,
-            None => { eprintln!("skip"); return; }
+        let mut fs = if let Some(f) = open_minimal() { f } else {
+            eprintln!("skip");
+            return;
         };
         assert!(fs.exists("/hello.txt").unwrap());
         assert!(!fs.exists("/nonexistent").unwrap());
@@ -350,9 +360,9 @@ mod tests {
 
     #[test]
     fn all_inodes() {
-        let mut fs = match open_minimal() {
-            Some(f) => f,
-            None => { eprintln!("skip"); return; }
+        let mut fs = if let Some(f) = open_minimal() { f } else {
+            eprintln!("skip");
+            return;
         };
         let inodes = fs.all_inodes().unwrap();
         assert!(!inodes.is_empty());
@@ -360,9 +370,9 @@ mod tests {
 
     #[test]
     fn deleted_inodes_on_fresh_image() {
-        let mut fs = match open_minimal() {
-            Some(f) => f,
-            None => { eprintln!("skip"); return; }
+        let mut fs = if let Some(f) = open_minimal() { f } else {
+            eprintln!("skip");
+            return;
         };
         let deleted = fs.deleted_inodes().unwrap();
         assert!(deleted.is_empty());
@@ -370,9 +380,9 @@ mod tests {
 
     #[test]
     fn timeline_generation() {
-        let mut fs = match open_minimal() {
-            Some(f) => f,
-            None => { eprintln!("skip"); return; }
+        let mut fs = if let Some(f) = open_minimal() { f } else {
+            eprintln!("skip");
+            return;
         };
         let events = fs.timeline().unwrap();
         assert!(!events.is_empty());
@@ -380,9 +390,9 @@ mod tests {
 
     #[test]
     fn unallocated_blocks_exist() {
-        let mut fs = match open_minimal() {
-            Some(f) => f,
-            None => { eprintln!("skip"); return; }
+        let mut fs = if let Some(f) = open_minimal() { f } else {
+            eprintln!("skip");
+            return;
         };
         let ranges = fs.unallocated_blocks().unwrap();
         assert!(!ranges.is_empty());
@@ -401,30 +411,36 @@ mod tests {
         // symlink_target() calls resolve_path() which follows symlinks,
         // so /abs-link resolves to hello.txt (inode 12), not the symlink itself.
         // Verify the method returns NotASymlink for a followed-through path.
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let err = fs.symlink_target("/abs-link").unwrap_err();
-        assert!(format!("{err:?}").contains("NotASymlink"),
-            "symlink_target on a followed symlink should return NotASymlink, got: {err:?}");
+        assert!(
+            format!("{err:?}").contains("NotASymlink"),
+            "symlink_target on a followed symlink should return NotASymlink, got: {err:?}"
+        );
     }
 
     #[test]
     fn inode_root_is_directory() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let root = fs.inode(2).unwrap();
-        assert_eq!(root.file_type(), ondisk::FileType::Directory, "inode 2 should be a directory");
+        assert_eq!(
+            root.file_type(),
+            ondisk::FileType::Directory,
+            "inode 2 should be a directory"
+        );
     }
 
     #[test]
     fn orphan_inodes_returns_ok() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let result = fs.orphan_inodes();
         assert!(result.is_ok(), "orphan_inodes should not error");
@@ -432,43 +448,52 @@ mod tests {
 
     #[test]
     fn recover_file_deleted_inode() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let result = fs.recover_file(21);
-        assert!(result.is_ok(), "recover_file(21) should return a RecoveryResult");
+        assert!(
+            result.is_ok(),
+            "recover_file(21) should return a RecoveryResult"
+        );
     }
 
     #[test]
     fn journal_has_transactions() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let journal = fs.journal().unwrap();
-        assert!(!journal.transactions.is_empty(), "journal should have transactions");
+        assert!(
+            !journal.transactions.is_empty(),
+            "journal should have transactions"
+        );
     }
 
     #[test]
     fn xattrs_on_hello_txt() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let attrs = fs.xattrs(12).unwrap();
-        let names: Vec<String> = attrs.iter()
+        let names: Vec<String> = attrs
+            .iter()
             .map(|a| String::from_utf8_lossy(&a.name).to_string())
             .collect();
-        assert!(names.iter().any(|n| n.contains("forensic")),
-            "inode 12 should have user.forensic xattr, got: {names:?}");
+        assert!(
+            names.iter().any(|n| n.contains("forensic")),
+            "inode 12 should have user.forensic xattr, got: {names:?}"
+        );
     }
 
     #[test]
     fn read_unallocated_first_range() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let ranges = fs.unallocated_blocks().unwrap();
         assert!(!ranges.is_empty(), "should have unallocated ranges");
@@ -478,20 +503,23 @@ mod tests {
 
     #[test]
     fn is_inode_allocated_root() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
-        assert!(fs.is_inode_allocated(2).unwrap(), "root inode 2 should be allocated");
+        assert!(
+            fs.is_inode_allocated(2).unwrap(),
+            "root inode 2 should be allocated"
+        );
         // inode 21 is deleted, may or may not be allocated depending on reuse
         let _alloc21 = fs.is_inode_allocated(21).unwrap();
     }
 
     #[test]
     fn is_block_allocated_zero() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let allocated = fs.is_block_allocated(0).unwrap();
         assert!(allocated, "block 0 (superblock) should be allocated");
@@ -499,9 +527,9 @@ mod tests {
 
     #[test]
     fn read_block_zero() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let block_size = fs.superblock().block_size as usize;
         let data = fs.read_block(0).unwrap();
@@ -510,21 +538,23 @@ mod tests {
 
     #[test]
     fn read_dir_by_ino_root() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let entries = fs.read_dir_by_ino(2).unwrap();
-        let names: Vec<String> = entries.iter().map(|e| e.name_str()).collect();
-        assert!(names.contains(&"hello.txt".to_string()),
-            "root dir should contain hello.txt, got: {names:?}");
+        let names: Vec<String> = entries.iter().map(super::ondisk::dir_entry::DirEntry::name_str).collect();
+        assert!(
+            names.contains(&"hello.txt".to_string()),
+            "root dir should contain hello.txt, got: {names:?}"
+        );
     }
 
     #[test]
     fn lookup_by_ino_hello_txt() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let result = fs.lookup_by_ino(2, b"hello.txt").unwrap();
         assert!(result.is_some(), "hello.txt should exist in root dir");
@@ -532,12 +562,14 @@ mod tests {
 
     #[test]
     fn read_link_by_ino_abs_link() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         // First resolve abs-link's inode
-        let ino = fs.lookup_by_ino(2, b"abs-link").unwrap()
+        let ino = fs
+            .lookup_by_ino(2, b"abs-link")
+            .unwrap()
             .expect("abs-link should exist in root");
         let target = fs.read_link_by_ino(ino).unwrap();
         assert_eq!(target, b"/hello.txt", "abs-link should point to /hello.txt");
@@ -545,35 +577,42 @@ mod tests {
 
     #[test]
     fn read_inode_data_hello_txt() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let data = fs.read_inode_data(12).unwrap();
         let text = std::str::from_utf8(&data).unwrap_or("");
-        assert!(text.contains("Hello"), "inode 12 (hello.txt) should contain 'Hello', got: {text:?}");
+        assert!(
+            text.contains("Hello"),
+            "inode 12 (hello.txt) should contain 'Hello', got: {text:?}"
+        );
     }
 
     #[test]
     fn read_inode_data_range_hello_txt() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let data = fs.read_inode_data_range(12, 0, 5).unwrap();
-        assert_eq!(data, b"Hello", "first 5 bytes of hello.txt should be 'Hello'");
+        assert_eq!(
+            data, b"Hello",
+            "first 5 bytes of hello.txt should be 'Hello'"
+        );
     }
 
     #[test]
     fn slack_space_api() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         // Find a regular file inode with non-block-aligned size
         let all = fs.all_inodes().unwrap();
-        let block_size = fs.superblock().block_size as u64;
-        let file_ino = all.iter()
+        let block_size = u64::from(fs.superblock().block_size);
+        let file_ino = all
+            .iter()
             .find(|(_, inode)| {
                 inode.file_type() == ondisk::FileType::RegularFile
                     && inode.size > 0
@@ -582,14 +621,17 @@ mod tests {
             .map(|(ino, _)| *ino)
             .expect("forensic.img should have a non-block-aligned regular file");
         let slack = fs.slack_space(file_ino).unwrap();
-        assert!(slack.is_some(), "non-block-aligned file should have slack space");
+        assert!(
+            slack.is_some(),
+            "non-block-aligned file should have slack space"
+        );
     }
 
     #[test]
     fn hash_file_api() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip");
+            return;
         };
         let hash = fs.hash_file(12).unwrap();
         assert_eq!(hash.md5.len(), 32);
@@ -597,9 +639,9 @@ mod tests {
 
     #[test]
     fn recover_dir_entries_api() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip");
+            return;
         };
         let recovered = fs.recover_dir_entries(2).unwrap();
         let _ = recovered; // may be empty depending on kernel behavior
@@ -607,9 +649,9 @@ mod tests {
 
     #[test]
     fn recover_all_dir_entries_api() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip");
+            return;
         };
         let all = fs.recover_all_dir_entries().unwrap();
         let _ = all;
@@ -617,9 +659,9 @@ mod tests {
 
     #[test]
     fn hash_all_files_api() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip");
+            return;
         };
         let hashes = fs.hash_all_files().unwrap();
         assert!(!hashes.is_empty());
@@ -627,9 +669,9 @@ mod tests {
 
     #[test]
     fn inode_history_api() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip");
+            return;
         };
         let versions = fs.inode_history(12).unwrap();
         // Should not error
@@ -638,19 +680,22 @@ mod tests {
 
     #[test]
     fn scan_all_slack_api() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let slacks = fs.scan_all_slack().unwrap();
-        assert!(!slacks.is_empty(), "forensic.img should have files with slack");
+        assert!(
+            !slacks.is_empty(),
+            "forensic.img should have files with slack"
+        );
     }
 
     #[test]
     fn verify_superblock_backups_api() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip");
+            return;
         };
         let results = fs.verify_superblock_backups().unwrap();
         let _ = results; // small image may have no backups
@@ -658,11 +703,13 @@ mod tests {
 
     #[test]
     fn search_blocks_api() {
-        let mut fs = match open_forensic() {
-            Some(f) => f,
-            None => { eprintln!("skip"); return; }
+        let mut fs = if let Some(f) = open_forensic() { f } else {
+            eprintln!("skip");
+            return;
         };
-        let hits = fs.search_blocks(b"Hello", forensic::SearchScope::Allocated).unwrap();
+        let hits = fs
+            .search_blocks(b"Hello", forensic::SearchScope::Allocated)
+            .unwrap();
         assert!(!hits.is_empty());
     }
 

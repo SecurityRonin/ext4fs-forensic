@@ -14,19 +14,17 @@ pub struct CarvedInode {
 }
 
 /// Iterate block bitmaps and yield contiguous unallocated block ranges.
-pub fn unallocated_blocks<R: Read + Seek>(
-    reader: &mut InodeReader<R>,
-) -> Result<Vec<BlockRange>> {
+pub fn unallocated_blocks<R: Read + Seek>(reader: &mut InodeReader<R>) -> Result<Vec<BlockRange>> {
     let sb = reader.block_reader().superblock();
     let group_count = reader.block_reader().group_count();
-    let bpg = sb.blocks_per_group as u64;
+    let bpg = u64::from(sb.blocks_per_group);
     let blocks_count = sb.blocks_count;
     let mut ranges = Vec::new();
 
     for g in 0..group_count {
         let bitmap_block = reader.block_reader_mut().block_bitmap_block(g)?;
         let bitmap = reader.block_reader_mut().read_block(bitmap_block)?;
-        let base_block = g as u64 * bpg;
+        let base_block = u64::from(g) * bpg;
 
         let mut run_start: Option<u64> = None;
         let blocks_in_group = bpg.min(blocks_count.saturating_sub(base_block));
@@ -70,7 +68,9 @@ pub fn read_unallocated<R: Read + Seek>(
     reader: &mut InodeReader<R>,
     range: &BlockRange,
 ) -> Result<Vec<u8>> {
-    reader.block_reader_mut().read_blocks(range.start, range.length)
+    reader
+        .block_reader_mut()
+        .read_blocks(range.start, range.length)
 }
 
 /// Scan unallocated blocks for extent tree magic (0xF30A) — potential orphaned inodes.
@@ -122,9 +122,9 @@ mod tests {
 
     #[test]
     fn find_unallocated_blocks() {
-        let mut reader = match open_minimal() {
-            Some(r) => r,
-            None => { eprintln!("skip: minimal.img not found"); return; }
+        let mut reader = if let Some(r) = open_minimal() { r } else {
+            eprintln!("skip: minimal.img not found");
+            return;
         };
         let ranges = unallocated_blocks(&mut reader).unwrap();
         assert!(!ranges.is_empty());
@@ -142,25 +142,28 @@ mod tests {
 
     #[test]
     fn forensic_image_has_unallocated_blocks() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let ranges = unallocated_blocks(&mut reader).unwrap();
         assert!(!ranges.is_empty(), "expected unallocated block ranges");
         let total_free: u64 = ranges.iter().map(|r| r.length).sum();
-        assert!(total_free > 100, "expected > 100 free blocks in 32MB image, got {total_free}");
+        assert!(
+            total_free > 100,
+            "expected > 100 free blocks in 32MB image, got {total_free}"
+        );
     }
 
     #[test]
     fn read_unallocated_returns_data() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let ranges = unallocated_blocks(&mut reader).unwrap();
         assert!(!ranges.is_empty(), "need at least one unallocated range");
-        let block_size = reader.block_reader().superblock().block_size as u64;
+        let block_size = u64::from(reader.block_reader().superblock().block_size);
         let first = &ranges[0];
         let data = read_unallocated(&mut reader, first).unwrap();
         assert_eq!(
@@ -172,16 +175,18 @@ mod tests {
 
     #[test]
     fn find_extent_signatures_runs_without_error() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let ranges = unallocated_blocks(&mut reader).unwrap();
         let carved = find_extent_signatures(&mut reader, &ranges).unwrap();
         for c in &carved {
             assert_eq!(
-                c.offset_in_block % 12, 0,
-                "offset {} is not 12-byte aligned", c.offset_in_block
+                c.offset_in_block % 12,
+                0,
+                "offset {} is not 12-byte aligned",
+                c.offset_in_block
             );
         }
     }

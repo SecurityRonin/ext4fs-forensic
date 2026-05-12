@@ -36,7 +36,7 @@ fn backup_groups(group_count: u32) -> Vec<u32> {
             };
         }
     }
-    groups.sort();
+    groups.sort_unstable();
     groups.retain(|&g| g < group_count);
     groups
 }
@@ -45,17 +45,39 @@ fn backup_groups(group_count: u32) -> Vec<u32> {
 fn compare_superblocks(primary: &Superblock, backup: &Superblock) -> Vec<String> {
     let mut diffs = Vec::new();
 
-    if primary.magic != backup.magic { diffs.push("magic".to_string()); }
-    if primary.block_size != backup.block_size { diffs.push("block_size".to_string()); }
-    if primary.blocks_count != backup.blocks_count { diffs.push("blocks_count".to_string()); }
-    if primary.inodes_count != backup.inodes_count { diffs.push("inodes_count".to_string()); }
-    if primary.blocks_per_group != backup.blocks_per_group { diffs.push("blocks_per_group".to_string()); }
-    if primary.inodes_per_group != backup.inodes_per_group { diffs.push("inodes_per_group".to_string()); }
-    if primary.uuid != backup.uuid { diffs.push("uuid".to_string()); }
-    if primary.inode_size != backup.inode_size { diffs.push("inode_size".to_string()); }
-    if primary.feature_compat != backup.feature_compat { diffs.push("feature_compat".to_string()); }
-    if primary.feature_incompat != backup.feature_incompat { diffs.push("feature_incompat".to_string()); }
-    if primary.feature_ro_compat != backup.feature_ro_compat { diffs.push("feature_ro_compat".to_string()); }
+    if primary.magic != backup.magic {
+        diffs.push("magic".to_string());
+    }
+    if primary.block_size != backup.block_size {
+        diffs.push("block_size".to_string());
+    }
+    if primary.blocks_count != backup.blocks_count {
+        diffs.push("blocks_count".to_string());
+    }
+    if primary.inodes_count != backup.inodes_count {
+        diffs.push("inodes_count".to_string());
+    }
+    if primary.blocks_per_group != backup.blocks_per_group {
+        diffs.push("blocks_per_group".to_string());
+    }
+    if primary.inodes_per_group != backup.inodes_per_group {
+        diffs.push("inodes_per_group".to_string());
+    }
+    if primary.uuid != backup.uuid {
+        diffs.push("uuid".to_string());
+    }
+    if primary.inode_size != backup.inode_size {
+        diffs.push("inode_size".to_string());
+    }
+    if primary.feature_compat != backup.feature_compat {
+        diffs.push("feature_compat".to_string());
+    }
+    if primary.feature_incompat != backup.feature_incompat {
+        diffs.push("feature_incompat".to_string());
+    }
+    if primary.feature_ro_compat != backup.feature_ro_compat {
+        diffs.push("feature_ro_compat".to_string());
+    }
 
     diffs
 }
@@ -66,16 +88,18 @@ pub fn verify_superblock_backups<R: Read + Seek>(
 ) -> Result<Vec<SuperblockComparison>> {
     let primary = reader.block_reader().superblock().clone();
     let group_count = reader.block_reader().group_count();
-    let block_size = primary.block_size as u64;
-    let blocks_per_group = primary.blocks_per_group as u64;
+    let block_size = u64::from(primary.block_size);
+    let blocks_per_group = u64::from(primary.blocks_per_group);
 
     let groups = backup_groups(group_count);
     let mut results = Vec::new();
 
     for &group in &groups {
-        if group == 0 { continue; } // skip primary
+        if group == 0 {
+            continue;
+        } // skip primary
 
-        let block = group as u64 * blocks_per_group;
+        let block = u64::from(group) * blocks_per_group;
 
         // Superblock is at byte offset 1024 within its block group,
         // but for block_size >= 2048, it's at the start of the first block.
@@ -92,17 +116,14 @@ pub fn verify_superblock_backups<R: Read + Seek>(
             Err(_) => continue,
         };
 
-        let backup_sb = match Superblock::parse(&buf) {
-            Ok(sb) => sb,
-            Err(_) => {
-                results.push(SuperblockComparison {
-                    group,
-                    block,
-                    matches_primary: false,
-                    differences: vec!["unparseable".to_string()],
-                });
-                continue;
-            }
+        let backup_sb = if let Ok(sb) = Superblock::parse(&buf) { sb } else {
+            results.push(SuperblockComparison {
+                group,
+                block,
+                matches_primary: false,
+                differences: vec!["unparseable".to_string()],
+            });
+            continue;
         };
 
         let diffs = compare_superblocks(&primary, &backup_sb);
@@ -163,9 +184,9 @@ mod tests {
 
     #[test]
     fn verify_backups_on_forensic_img() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         let results = verify_superblock_backups(&mut reader).unwrap();
         // forensic.img is 32MB / 4096 = 8192 blocks / 32768 bpg = 1 group
@@ -173,7 +194,10 @@ mod tests {
         // The function should return empty or handle gracefully
         eprintln!("Backup verification results: {} entries", results.len());
         for r in &results {
-            eprintln!("  group {}: matches={}, diffs={:?}", r.group, r.matches_primary, r.differences);
+            eprintln!(
+                "  group {}: matches={}, diffs={:?}",
+                r.group, r.matches_primary, r.differences
+            );
         }
     }
 
@@ -188,6 +212,9 @@ mod tests {
         buf[0x4C..0x50].copy_from_slice(&1u32.to_le_bytes()); // rev_level
         let sb = Superblock::parse(&buf).unwrap();
         let diffs = compare_superblocks(&sb, &sb);
-        assert!(diffs.is_empty(), "identical superblocks should have no differences");
+        assert!(
+            diffs.is_empty(),
+            "identical superblocks should have no differences"
+        );
     }
 }

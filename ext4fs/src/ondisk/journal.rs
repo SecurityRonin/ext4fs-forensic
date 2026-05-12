@@ -22,7 +22,11 @@ fn be64(buf: &[u8], off: usize) -> u64 {
 
 fn check_len(buf: &[u8], need: usize, structure: &'static str) -> Result<()> {
     if buf.len() < need {
-        Err(Ext4Error::TooShort { structure, expected: need, found: buf.len() })
+        Err(Ext4Error::TooShort {
+            structure,
+            expected: need,
+            found: buf.len(),
+        })
     } else {
         Ok(())
     }
@@ -180,17 +184,24 @@ pub struct JournalBlockTag {
 
 impl JournalBlockTag {
     pub fn parse_v3(buf: &[u8], is_64bit: bool) -> Self {
-        let blocknr_lo = be32(buf, 0x00) as u64;
+        let blocknr_lo = u64::from(be32(buf, 0x00));
         let flags = be32(buf, 0x04);
         let escaped = flags & 0x01 != 0;
         let same_uuid = flags & 0x02 != 0;
         let last_tag = flags & 0x08 != 0;
-        let blocknr_hi = if is_64bit { be32(buf, 0x08) as u64 } else { 0 };
+        let blocknr_hi = if is_64bit { u64::from(be32(buf, 0x08)) } else { 0 };
         let blocknr = (blocknr_hi << 32) | blocknr_lo;
         let checksum = be32(buf, 0x0C);
         // 16-byte base + 16-byte UUID when uuid is not shared
         let tag_size = if same_uuid { 16 } else { 32 };
-        Self { blocknr, checksum, escaped, same_uuid, last_tag, tag_size }
+        Self {
+            blocknr,
+            checksum,
+            escaped,
+            same_uuid,
+            last_tag,
+            tag_size,
+        }
     }
 }
 
@@ -250,12 +261,15 @@ impl JournalRevoke {
             let blk = if is_64bit {
                 be64(data, off)
             } else {
-                be32(data, off) as u64
+                u64::from(be32(data, off))
             };
             revoked_blocks.push(blk);
             off += entry_size;
         }
-        Ok(Self { sequence: header.sequence, revoked_blocks })
+        Ok(Self {
+            sequence: header.sequence,
+            revoked_blocks,
+        })
     }
 }
 
@@ -320,7 +334,7 @@ mod tests {
         buf[0x0C..0x10].copy_from_slice(&1024u32.to_be_bytes()); // block_size
         buf[0x10..0x14].copy_from_slice(&100u32.to_be_bytes()); // max_len
         buf[0x14..0x18].copy_from_slice(&1u32.to_be_bytes()); // first_block
-        // Set feature_incompat with 64BIT and CSUM_V3
+                                                              // Set feature_incompat with 64BIT and CSUM_V3
         let features: u32 = JBD2_FEATURE_INCOMPAT_64BIT | JBD2_FEATURE_INCOMPAT_CSUM_V3;
         buf[0x28..0x2C].copy_from_slice(&features.to_be_bytes());
 

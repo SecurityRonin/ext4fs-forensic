@@ -77,7 +77,12 @@ impl DirEntry {
 
         let name = buf[HEADER_LEN..HEADER_LEN + name_len].to_vec();
 
-        Ok(Self { inode, rec_len, name, file_type })
+        Ok(Self {
+            inode,
+            rec_len,
+            name,
+            file_type,
+        })
     }
 
     /// Return the entry name as a lossy UTF-8 string.
@@ -126,8 +131,8 @@ mod tests {
         let mut buf = vec![0u8; 20];
         buf[0] = 12; // inode
         buf[4] = 20; // rec_len
-        buf[6] = 5;  // name_len
-        buf[7] = 1;  // file_type (regular)
+        buf[6] = 5; // name_len
+        buf[7] = 1; // file_type (regular)
         buf[8..13].copy_from_slice(b"hello");
         let entry = DirEntry::parse(&buf).unwrap();
         assert_eq!(entry.inode, 12);
@@ -139,7 +144,11 @@ mod tests {
     #[test]
     fn parse_dot_entries() {
         let mut buf = vec![0u8; 12];
-        buf[0] = 2; buf[4] = 12; buf[6] = 1; buf[7] = 2; buf[8] = b'.';
+        buf[0] = 2;
+        buf[4] = 12;
+        buf[6] = 1;
+        buf[7] = 2;
+        buf[8] = b'.';
         let entry = DirEntry::parse(&buf).unwrap();
         assert_eq!(entry.name, b".");
         assert_eq!(entry.file_type, DirEntryType::Directory);
@@ -148,7 +157,10 @@ mod tests {
     #[test]
     fn skip_deleted_entry() {
         let mut buf = vec![0u8; 12];
-        buf[0] = 0; buf[4] = 12; buf[6] = 3; buf[7] = 1;
+        buf[0] = 0;
+        buf[4] = 12;
+        buf[6] = 3;
+        buf[7] = 1;
         buf[8..11].copy_from_slice(b"foo");
         let entry = DirEntry::parse(&buf).unwrap();
         assert_eq!(entry.inode, 0);
@@ -164,7 +176,10 @@ mod tests {
     #[test]
     fn is_deleted_flag() {
         let mut buf = vec![0u8; 12];
-        buf[0] = 0; buf[4] = 12; buf[6] = 3; buf[7] = 1;
+        buf[0] = 0;
+        buf[4] = 12;
+        buf[6] = 3;
+        buf[7] = 1;
         buf[8..11].copy_from_slice(b"del");
         let entry = DirEntry::parse(&buf).unwrap();
         assert!(entry.is_deleted());
@@ -173,7 +188,10 @@ mod tests {
     #[test]
     fn name_str_utf8() {
         let mut buf = vec![0u8; 13];
-        buf[0] = 5; buf[4] = 13; buf[6] = 5; buf[7] = 1;
+        buf[0] = 5;
+        buf[4] = 13;
+        buf[6] = 5;
+        buf[7] = 1;
         buf[8..13].copy_from_slice(b"world");
         let entry = DirEntry::parse(&buf).unwrap();
         assert_eq!(entry.name_str(), "world");
@@ -184,10 +202,18 @@ mod tests {
         // Two back-to-back 12-byte entries.
         let mut block = vec![0u8; 24];
         // Entry 1: inode=1, rec_len=12, name_len=1, type=2 (dir), name="."
-        block[0] = 1; block[4] = 12; block[6] = 1; block[7] = 2; block[8] = b'.';
+        block[0] = 1;
+        block[4] = 12;
+        block[6] = 1;
+        block[7] = 2;
+        block[8] = b'.';
         // Entry 2: inode=2, rec_len=12, name_len=2, type=2 (dir), name=".."
-        block[12] = 2; block[16] = 12; block[18] = 2; block[19] = 2;
-        block[20] = b'.'; block[21] = b'.';
+        block[12] = 2;
+        block[16] = 12;
+        block[18] = 2;
+        block[19] = 2;
+        block[20] = b'.';
+        block[21] = b'.';
         let entries = parse_dir_block(&block);
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].name, b".");

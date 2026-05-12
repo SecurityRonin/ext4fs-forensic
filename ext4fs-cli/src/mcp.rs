@@ -294,12 +294,9 @@ fn handle_tool(
                 .and_then(|e| e.as_str())
                 .unwrap_or("text");
             let data = fs.read_file(path).map_err(|e| e.to_string())?;
-            match encoding {
-                "base64" => Ok(mcp_text(&base64_encode(&data))),
-                _ => {
-                    let text = String::from_utf8_lossy(&data);
-                    Ok(mcp_text(&text))
-                }
+            if encoding == "base64" { Ok(mcp_text(&base64_encode(&data))) } else {
+                let text = String::from_utf8_lossy(&data);
+                Ok(mcp_text(&text))
             }
         }
         "ext4fs_stat" => {
@@ -348,7 +345,7 @@ fn handle_tool(
             let fs = sessions.get_mut(&sid).ok_or("invalid session")?;
             let ino = args
                 .get("inode")
-                .and_then(|i| i.as_u64())
+                .and_then(serde_json::Value::as_u64)
                 .ok_or("missing 'inode'")?;
             let result = fs.recover_file(ino).map_err(|e| e.to_string())?;
             Ok(mcp_json(&json!({
@@ -383,10 +380,7 @@ fn handle_tool(
                 .get("pattern")
                 .and_then(|p| p.as_str())
                 .ok_or("missing 'pattern'")?;
-            let scope_str = args
-                .get("scope")
-                .and_then(|s| s.as_str())
-                .unwrap_or("all");
+            let scope_str = args.get("scope").and_then(|s| s.as_str()).unwrap_or("all");
             let scope = match scope_str {
                 "allocated" => ext4fs::forensic::SearchScope::Allocated,
                 "unallocated" => ext4fs::forensic::SearchScope::Unallocated,
@@ -416,7 +410,7 @@ fn handle_tool(
             let fs = sessions.get_mut(&sid).ok_or("invalid session")?;
             let ino = args
                 .get("inode")
-                .and_then(|i| i.as_u64())
+                .and_then(serde_json::Value::as_u64)
                 .ok_or("missing 'inode'")?;
             let hash = fs.hash_file(ino).map_err(|e| e.to_string())?;
             Ok(mcp_json(&json!({
@@ -456,7 +450,7 @@ fn handle_tool(
 fn get_session_id(args: &Value) -> Result<String, String> {
     args.get("session")
         .and_then(|s| s.as_str())
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
         .ok_or_else(|| "missing 'session' argument".to_string())
 }
 
@@ -476,9 +470,9 @@ fn base64_encode(data: &[u8]) -> String {
     const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut result = String::new();
     for chunk in data.chunks(3) {
-        let b0 = chunk[0] as u32;
-        let b1 = if chunk.len() > 1 { chunk[1] as u32 } else { 0 };
-        let b2 = if chunk.len() > 2 { chunk[2] as u32 } else { 0 };
+        let b0 = u32::from(chunk[0]);
+        let b1 = if chunk.len() > 1 { u32::from(chunk[1]) } else { 0 };
+        let b2 = if chunk.len() > 2 { u32::from(chunk[2]) } else { 0 };
         let triple = (b0 << 16) | (b1 << 8) | b2;
         result.push(CHARS[((triple >> 18) & 0x3F) as usize] as char);
         result.push(CHARS[((triple >> 12) & 0x3F) as usize] as char);
@@ -568,19 +562,13 @@ mod tests {
             eprintln!("skip: forensic.img not found");
             return;
         }
-        let result =
-            handle_tool("ext4fs_open", &json!({"path": path}), &mut sessions).unwrap();
+        let result = handle_tool("ext4fs_open", &json!({"path": path}), &mut sessions).unwrap();
         let text = result["content"][0]["text"].as_str().unwrap();
         assert!(text.starts_with("Session opened:"));
         assert_eq!(sessions.len(), 1);
 
         let sid = sessions.keys().next().unwrap().clone();
-        handle_tool(
-            "ext4fs_close",
-            &json!({"session": sid}),
-            &mut sessions,
-        )
-        .unwrap();
+        handle_tool("ext4fs_close", &json!({"session": sid}), &mut sessions).unwrap();
         assert!(sessions.is_empty());
     }
 

@@ -57,7 +57,7 @@ impl<R: Read + Seek> DirReader<R> {
         let entries = self.read_dir(dir_ino)?;
         for e in entries {
             if e.name.as_slice() == name {
-                return Ok(Some(e.inode as u64));
+                return Ok(Some(u64::from(e.inode)));
             }
         }
         Ok(None)
@@ -120,12 +120,7 @@ impl<R: Read + Seek> DirReader<R> {
 
     /// Resolve a relative symlink `target` whose link inode is inside
     /// directory `dir_ino`.
-    fn resolve_relative_link(
-        &mut self,
-        dir_ino: u64,
-        target: &str,
-        depth: u32,
-    ) -> Result<u64> {
+    fn resolve_relative_link(&mut self, dir_ino: u64, target: &str, depth: u32) -> Result<u64> {
         if depth > MAX_SYMLINK_DEPTH {
             return Err(Ext4Error::SymlinkLoop {
                 path: target.to_string(),
@@ -134,10 +129,7 @@ impl<R: Read + Seek> DirReader<R> {
         }
 
         let mut cur_ino = dir_ino;
-        let components: Vec<&str> = target
-            .split('/')
-            .filter(|c| !c.is_empty())
-            .collect();
+        let components: Vec<&str> = target.split('/').filter(|c| !c.is_empty()).collect();
 
         for component in components {
             match component {
@@ -159,8 +151,7 @@ impl<R: Read + Seek> DirReader<R> {
                         if link_str.starts_with('/') {
                             cur_ino = self.resolve_path_inner(&link_str, depth + 1)?;
                         } else {
-                            cur_ino =
-                                self.resolve_relative_link(cur_ino, &link_str, depth + 1)?;
+                            cur_ino = self.resolve_relative_link(cur_ino, &link_str, depth + 1)?;
                         }
                     } else {
                         cur_ino = next;
@@ -210,7 +201,7 @@ mod tests {
     fn read_root_directory() {
         let mut r = open_minimal();
         let entries = r.read_dir(2).unwrap();
-        let names: Vec<String> = entries.iter().map(|e| e.name_str()).collect();
+        let names: Vec<String> = entries.iter().map(super::super::ondisk::dir_entry::DirEntry::name_str).collect();
         assert!(names.contains(&".".to_string()));
         assert!(names.contains(&"..".to_string()));
         assert!(names.contains(&"hello.txt".to_string()));
@@ -286,12 +277,9 @@ mod tests {
 
     #[test]
     fn resolve_absolute_symlink() {
-        let mut r = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut r = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         // Read expected content from /hello.txt
         let hello_ino = r.resolve_path("/hello.txt").unwrap();
@@ -304,12 +292,9 @@ mod tests {
 
     #[test]
     fn resolve_relative_symlink() {
-        let mut r = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut r = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let hello_ino = r.resolve_path("/hello.txt").unwrap();
         let expected = r.inode_reader_mut().read_inode_data(hello_ino).unwrap();
@@ -320,12 +305,9 @@ mod tests {
 
     #[test]
     fn resolve_deep_symlink() {
-        let mut r = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut r = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let nested_ino = r.resolve_path("/subdir/nested.txt").unwrap();
         let expected = r.inode_reader_mut().read_inode_data(nested_ino).unwrap();
@@ -336,12 +318,9 @@ mod tests {
 
     #[test]
     fn resolve_updir_symlink() {
-        let mut r = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut r = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let hello_ino = r.resolve_path("/hello.txt").unwrap();
         let expected = r.inode_reader_mut().read_inode_data(hello_ino).unwrap();
@@ -352,12 +331,9 @@ mod tests {
 
     #[test]
     fn read_link_inline() {
-        let mut r = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut r = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let link_ino = r.lookup(2, b"abs-link").unwrap().unwrap();
         let target = r.read_link(link_ino).unwrap();
@@ -367,12 +343,9 @@ mod tests {
 
     #[test]
     fn read_link_not_a_symlink() {
-        let mut r = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut r = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let file_ino = r.lookup(2, b"hello.txt").unwrap().unwrap();
         let err = r.read_link(file_ino).unwrap_err();
@@ -381,12 +354,9 @@ mod tests {
 
     #[test]
     fn resolve_nonexistent_through_symlink() {
-        let mut r = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut r = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         // Try resolving a path that doesn't exist — the symlink target is missing
         let err = r.resolve_path("/nonexistent-link");
@@ -397,12 +367,9 @@ mod tests {
 
     #[test]
     fn lookup_returns_none_for_missing_forensic() {
-        let mut r = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut r = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let result = r.lookup(2, b"does-not-exist.xyz").unwrap();
         assert!(result.is_none());
@@ -410,21 +377,24 @@ mod tests {
 
     #[test]
     fn read_dir_handles_all_directory_types() {
-        let mut r = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut r = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let all_inodes = r.inode_reader_mut().iter_all_inodes().unwrap();
         let mut dir_count = 0;
         for (ino, inode) in &all_inodes {
             if inode.file_type() == FileType::Directory && inode.mode != 0 {
                 let entries = r.read_dir(*ino).unwrap();
-                let names: Vec<String> = entries.iter().map(|e| e.name_str()).collect();
-                assert!(names.contains(&".".to_string()), "dir ino {ino} missing '.'");
-                assert!(names.contains(&"..".to_string()), "dir ino {ino} missing '..'");
+                let names: Vec<String> = entries.iter().map(super::super::ondisk::dir_entry::DirEntry::name_str).collect();
+                assert!(
+                    names.contains(&".".to_string()),
+                    "dir ino {ino} missing '.'"
+                );
+                assert!(
+                    names.contains(&"..".to_string()),
+                    "dir ino {ino} missing '..'"
+                );
                 dir_count += 1;
             }
         }

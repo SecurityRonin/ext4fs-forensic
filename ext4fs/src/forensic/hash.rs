@@ -17,14 +17,11 @@ pub struct FileHash {
 }
 
 /// Compute all four hashes for a file by inode number.
-pub fn hash_file<R: Read + Seek>(
-    reader: &mut InodeReader<R>,
-    ino: u64,
-) -> Result<FileHash> {
+pub fn hash_file<R: Read + Seek>(reader: &mut InodeReader<R>, ino: u64) -> Result<FileHash> {
     let inode = reader.read_inode(ino)?;
     let data = reader.read_inode_data(ino)?;
 
-    use blazehash::algorithm::{Algorithm, hash_bytes};
+    use blazehash::algorithm::{hash_bytes, Algorithm};
 
     Ok(FileHash {
         ino,
@@ -37,9 +34,7 @@ pub fn hash_file<R: Read + Seek>(
 }
 
 /// Hash all allocated regular files on the filesystem.
-pub fn hash_all_files<R: Read + Seek>(
-    reader: &mut InodeReader<R>,
-) -> Result<Vec<FileHash>> {
+pub fn hash_all_files<R: Read + Seek>(reader: &mut InodeReader<R>) -> Result<Vec<FileHash>> {
     let all_inodes = reader.iter_all_inodes()?;
     let mut results = Vec::new();
 
@@ -71,9 +66,9 @@ mod tests {
 
     #[test]
     fn hash_file_correct_lengths() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         let hash = hash_file(&mut reader, 12).unwrap();
         assert_eq!(hash.blake3.len(), 64, "BLAKE3 hex should be 64 chars");
@@ -84,9 +79,9 @@ mod tests {
 
     #[test]
     fn hash_file_deterministic() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         let h1 = hash_file(&mut reader, 12).unwrap();
         let h2 = hash_file(&mut reader, 12).unwrap();
@@ -98,28 +93,31 @@ mod tests {
 
     #[test]
     fn hash_file_known_content() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         // hello.txt contains "Hello, forensic world!\n"
         let hash = hash_file(&mut reader, 12).unwrap();
         // Compute expected SHA-256 independently
         let content = reader.read_inode_data(12).unwrap();
-        let expected_sha256 = blazehash::algorithm::hash_bytes(
-            blazehash::algorithm::Algorithm::Sha256, &content
-        );
+        let expected_sha256 =
+            blazehash::algorithm::hash_bytes(blazehash::algorithm::Algorithm::Sha256, &content);
         assert_eq!(hash.sha256, expected_sha256);
     }
 
     #[test]
     fn hash_all_files_returns_multiple() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         let hashes = hash_all_files(&mut reader).unwrap();
-        assert!(hashes.len() >= 2, "forensic.img should have multiple files, got {}", hashes.len());
+        assert!(
+            hashes.len() >= 2,
+            "forensic.img should have multiple files, got {}",
+            hashes.len()
+        );
         // All hashes should have correct lengths
         for h in &hashes {
             assert_eq!(h.blake3.len(), 64);

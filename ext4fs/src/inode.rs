@@ -91,14 +91,14 @@ impl<R: Read + Seek> InodeReader<R> {
     /// the filesystem's inode count.
     pub fn read_inode(&mut self, ino: u64) -> Result<Inode> {
         let sb = self.block_reader.superblock();
-        let max = sb.inodes_count as u64;
+        let max = u64::from(sb.inodes_count);
         if ino == 0 || ino > max {
             return Err(Ext4Error::InodeOutOfRange { ino, max });
         }
 
-        let inodes_per_group = sb.inodes_per_group as u64;
-        let inode_size = sb.inode_size as u64;
-        let block_size = sb.block_size as u64;
+        let inodes_per_group = u64::from(sb.inodes_per_group);
+        let inode_size = u64::from(sb.inode_size);
+        let block_size = u64::from(sb.block_size);
 
         let group = ((ino - 1) / inodes_per_group) as u32;
         let index = (ino - 1) % inodes_per_group;
@@ -118,18 +118,19 @@ impl<R: Read + Seek> InodeReader<R> {
     /// Returns the full inode-sized buffer from the inode table.
     pub fn read_inode_raw(&mut self, ino: u64) -> Result<Vec<u8>> {
         let sb = self.block_reader.superblock();
-        let inode_size = sb.inode_size as u64;
-        let inodes_per_group = sb.inodes_per_group as u64;
-        let max = sb.inodes_count as u64;
+        let inode_size = u64::from(sb.inode_size);
+        let inodes_per_group = u64::from(sb.inodes_per_group);
+        let max = u64::from(sb.inodes_count);
         if ino < 1 || ino > max {
             return Err(Ext4Error::InodeOutOfRange { ino, max });
         }
         let group = ((ino - 1) / inodes_per_group) as u32;
         let index = (ino - 1) % inodes_per_group;
         let inode_table_block = self.block_reader.inode_table_block(group)?;
-        let block_size = self.block_reader.superblock().block_size as u64;
+        let block_size = u64::from(self.block_reader.superblock().block_size);
         let byte_offset = inode_table_block * block_size + index * inode_size;
-        self.block_reader.read_bytes(byte_offset, inode_size as usize)
+        self.block_reader
+            .read_bytes(byte_offset, inode_size as usize)
     }
 
     // -----------------------------------------------------------------------
@@ -170,9 +171,9 @@ impl<R: Read + Seek> InodeReader<R> {
                 }
                 let leaf = ExtentLeaf::parse(&buf[off..]);
                 out.push(BlockMapping {
-                    logical_block: leaf.logical_block as u64,
+                    logical_block: u64::from(leaf.logical_block),
                     physical_block: leaf.physical_block,
-                    length: leaf.length as u64,
+                    length: u64::from(leaf.length),
                     unwritten: leaf.unwritten,
                 });
             }
@@ -211,7 +212,7 @@ impl<R: Read + Seek> InodeReader<R> {
 
         // 12 direct pointers
         for i in 0..12usize {
-            let ptr = read_u32(i_block, i * 4) as u64;
+            let ptr = u64::from(read_u32(i_block, i * 4));
             if ptr != 0 {
                 out.push(BlockMapping {
                     logical_block: logical,
@@ -224,11 +225,11 @@ impl<R: Read + Seek> InodeReader<R> {
         }
 
         // Single indirect
-        let sind = read_u32(i_block, 48) as u64;
+        let sind = u64::from(read_u32(i_block, 48));
         if sind != 0 {
             let blk = self.block_reader.read_block(sind)?;
             for i in 0..ptrs_per_block {
-                let ptr = read_u32(&blk, i * 4) as u64;
+                let ptr = u64::from(read_u32(&blk, i * 4));
                 if ptr != 0 {
                     out.push(BlockMapping {
                         logical_block: logical,
@@ -244,15 +245,15 @@ impl<R: Read + Seek> InodeReader<R> {
         }
 
         // Double indirect
-        let dind = read_u32(i_block, 52) as u64;
+        let dind = u64::from(read_u32(i_block, 52));
         if dind != 0 {
             let l1 = self.block_reader.read_block(dind)?;
             for i in 0..ptrs_per_block {
-                let ptr1 = read_u32(&l1, i * 4) as u64;
+                let ptr1 = u64::from(read_u32(&l1, i * 4));
                 if ptr1 != 0 {
                     let l2 = self.block_reader.read_block(ptr1)?;
                     for j in 0..ptrs_per_block {
-                        let ptr2 = read_u32(&l2, j * 4) as u64;
+                        let ptr2 = u64::from(read_u32(&l2, j * 4));
                         if ptr2 != 0 {
                             out.push(BlockMapping {
                                 logical_block: logical,
@@ -272,19 +273,19 @@ impl<R: Read + Seek> InodeReader<R> {
         }
 
         // Triple indirect
-        let tind = read_u32(i_block, 56) as u64;
+        let tind = u64::from(read_u32(i_block, 56));
         if tind != 0 {
             let l1 = self.block_reader.read_block(tind)?;
             for i in 0..ptrs_per_block {
-                let ptr1 = read_u32(&l1, i * 4) as u64;
+                let ptr1 = u64::from(read_u32(&l1, i * 4));
                 if ptr1 != 0 {
                     let l2 = self.block_reader.read_block(ptr1)?;
                     for j in 0..ptrs_per_block {
-                        let ptr2 = read_u32(&l2, j * 4) as u64;
+                        let ptr2 = u64::from(read_u32(&l2, j * 4));
                         if ptr2 != 0 {
                             let l3 = self.block_reader.read_block(ptr2)?;
                             for k in 0..ptrs_per_block {
-                                let ptr3 = read_u32(&l3, k * 4) as u64;
+                                let ptr3 = u64::from(read_u32(&l3, k * 4));
                                 if ptr3 != 0 {
                                     out.push(BlockMapping {
                                         logical_block: logical,
@@ -384,7 +385,7 @@ impl<R: Read + Seek> InodeReader<R> {
         let want_end = (offset + len as u64).min(file_size);
         let want_len = (want_end - offset) as usize;
 
-        let block_size = self.block_reader.block_size() as u64;
+        let block_size = u64::from(self.block_reader.block_size());
         let map = if inode.uses_extents() {
             self.walk_extent_tree(&inode.i_block)?
         } else {
@@ -401,8 +402,16 @@ impl<R: Read + Seek> InodeReader<R> {
                 if logical_end <= offset || logical >= want_end {
                     continue;
                 }
-                let src_start = if logical < offset { (offset - logical) as usize } else { 0 };
-                let dst_start = if logical > offset { (logical - offset) as usize } else { 0 };
+                let src_start = if logical < offset {
+                    (offset - logical) as usize
+                } else {
+                    0
+                };
+                let dst_start = if logical > offset {
+                    (logical - offset) as usize
+                } else {
+                    0
+                };
                 let phys = mapping.physical_block + blk_offset;
                 let blk_data = self.block_reader.read_block(phys)?;
                 let src_end = blk_data.len().min(src_start + (want_len - dst_start));
@@ -426,11 +435,11 @@ impl<R: Read + Seek> InodeReader<R> {
     /// group's inode bitmap.
     pub fn is_inode_allocated(&mut self, ino: u64) -> Result<bool> {
         let sb = self.block_reader.superblock();
-        let max = sb.inodes_count as u64;
+        let max = u64::from(sb.inodes_count);
         if ino == 0 || ino > max {
             return Err(Ext4Error::InodeOutOfRange { ino, max });
         }
-        let inodes_per_group = sb.inodes_per_group as u64;
+        let inodes_per_group = u64::from(sb.inodes_per_group);
         let group = ((ino - 1) / inodes_per_group) as u32;
         let index = ((ino - 1) % inodes_per_group) as usize;
 
@@ -443,7 +452,7 @@ impl<R: Read + Seek> InodeReader<R> {
     /// block bitmap.
     pub fn is_block_allocated(&mut self, block: u64) -> Result<bool> {
         let sb = self.block_reader.superblock();
-        let blocks_per_group = sb.blocks_per_group as u64;
+        let blocks_per_group = u64::from(sb.blocks_per_group);
         let group = (block / blocks_per_group) as u32;
         let index = (block % blocks_per_group) as usize;
 
@@ -461,15 +470,17 @@ impl<R: Read + Seek> InodeReader<R> {
     /// An entry is skipped when `mode == 0 && dtime == 0` (empty slot).
     pub fn iter_inodes_in_group(&mut self, group: u32) -> Result<Vec<(u64, Inode)>> {
         let sb = self.block_reader.superblock();
-        let inodes_per_group = sb.inodes_per_group as u64;
+        let inodes_per_group = u64::from(sb.inodes_per_group);
         let inode_size = sb.inode_size as usize;
-        let block_size = sb.block_size as u64;
-        let first_ino = group as u64 * inodes_per_group + 1;
+        let block_size = u64::from(sb.block_size);
+        let first_ino = u64::from(group) * inodes_per_group + 1;
 
         let inode_table = self.block_reader.inode_table_block(group)?;
         let table_bytes = inode_size as u64 * inodes_per_group;
         let table_offset = inode_table * block_size;
-        let buf = self.block_reader.read_bytes(table_offset, table_bytes as usize)?;
+        let buf = self
+            .block_reader
+            .read_bytes(table_offset, table_bytes as usize)?;
 
         let stored_inode_size = self.block_reader.superblock().inode_size;
         let mut result = Vec::new();
@@ -630,7 +641,11 @@ mod tests {
         let mut r = open_minimal();
         let inode_size = r.block_reader().superblock().inode_size as usize;
         let raw = r.read_inode_raw(2).unwrap();
-        assert_eq!(raw.len(), inode_size, "raw inode length should equal inode_size");
+        assert_eq!(
+            raw.len(),
+            inode_size,
+            "raw inode length should equal inode_size"
+        );
         // The mode field (u16 LE at offset 0) should be non-zero for root dir
         let mode = u16::from_le_bytes([raw[0], raw[1]]);
         assert_ne!(mode, 0, "root inode mode should be non-zero");
@@ -652,7 +667,10 @@ mod tests {
         let hello_ino = resolve_minimal("/hello.txt");
         let mut r = open_minimal();
         let map = r.inode_block_map(hello_ino).unwrap();
-        assert!(!map.is_empty(), "hello.txt should have at least one block mapping");
+        assert!(
+            !map.is_empty(),
+            "hello.txt should have at least one block mapping"
+        );
         for m in &map {
             assert!(m.physical_block > 0, "physical block should be non-zero");
             assert!(m.length > 0, "mapping length should be positive");
@@ -668,7 +686,10 @@ mod tests {
         let hello_ino = resolve_minimal("/hello.txt");
         let mut r = open_minimal();
         let data = r.read_inode_data_range(hello_ino, 0, 5).unwrap();
-        assert_eq!(&data, b"Hello", "first 5 bytes of hello.txt should be 'Hello'");
+        assert_eq!(
+            &data, b"Hello",
+            "first 5 bytes of hello.txt should be 'Hello'"
+        );
     }
 
     #[test]
@@ -676,7 +697,9 @@ mod tests {
         let hello_ino = resolve_minimal("/hello.txt");
         let mut r = open_minimal();
         let inode = r.read_inode(hello_ino).unwrap();
-        let data = r.read_inode_data_range(hello_ino, inode.size + 100, 10).unwrap();
+        let data = r
+            .read_inode_data_range(hello_ino, inode.size + 100, 10)
+            .unwrap();
         assert!(data.is_empty(), "reading past EOF should return empty");
     }
 
@@ -755,7 +778,10 @@ mod tests {
         let mut r = open_minimal();
         let inode = r.read_inode(lf_ino).unwrap();
         assert_eq!(inode.file_type(), FileType::Directory);
-        assert!(inode.links_count >= 2, "lost+found should have at least 2 links");
+        assert!(
+            inode.links_count >= 2,
+            "lost+found should have at least 2 links"
+        );
     }
 
     // -------------------------------------------------------------------

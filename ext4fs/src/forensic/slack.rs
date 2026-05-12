@@ -33,7 +33,7 @@ pub fn read_slack_space<R: Read + Seek>(
         return Ok(None);
     }
 
-    let block_size = reader.block_reader().superblock().block_size as u64;
+    let block_size = u64::from(reader.block_reader().superblock().block_size);
 
     // If file size is block-aligned, no slack
     if inode.size % block_size == 0 {
@@ -70,9 +70,7 @@ pub fn read_slack_space<R: Read + Seek>(
 }
 
 /// Scan all allocated regular file inodes for slack space.
-pub fn scan_all_slack<R: Read + Seek>(
-    reader: &mut InodeReader<R>,
-) -> Result<Vec<SlackSpace>> {
+pub fn scan_all_slack<R: Read + Seek>(reader: &mut InodeReader<R>) -> Result<Vec<SlackSpace>> {
     let all_inodes = reader.iter_all_inodes()?;
     let mut results = Vec::new();
 
@@ -110,16 +108,16 @@ mod tests {
 
     #[test]
     fn slack_space_for_small_file() {
-        let mut reader = match open_minimal() {
-            Some(r) => r,
-            None => { eprintln!("skip"); return; }
+        let mut reader = if let Some(r) = open_minimal() { r } else {
+            eprintln!("skip");
+            return;
         };
         // Find hello.txt's inode by looking for a 12-byte regular file
         let all = reader.iter_all_inodes().unwrap();
-        let hello_ino = all.iter()
+        let hello_ino = all
+            .iter()
             .find(|(_, inode)| {
-                inode.file_type() == crate::ondisk::FileType::RegularFile
-                    && inode.size == 12
+                inode.file_type() == crate::ondisk::FileType::RegularFile && inode.size == 12
             })
             .map(|(ino, _)| *ino)
             .expect("minimal.img should have a 12-byte regular file (hello.txt)");
@@ -136,9 +134,9 @@ mod tests {
 
     #[test]
     fn no_slack_for_zero_size_file() {
-        let mut reader = match open_minimal() {
-            Some(r) => r,
-            None => { eprintln!("skip"); return; }
+        let mut reader = if let Some(r) = open_minimal() { r } else {
+            eprintln!("skip");
+            return;
         };
         // Inode 0 is invalid, should handle gracefully
         let result = read_slack_space(&mut reader, 0);
@@ -147,14 +145,17 @@ mod tests {
 
     #[test]
     fn scan_all_slack_finds_entries() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         let slacks = scan_all_slack(&mut reader).unwrap();
-        assert!(!slacks.is_empty(), "forensic.img should have files with slack");
+        assert!(
+            !slacks.is_empty(),
+            "forensic.img should have files with slack"
+        );
         for s in &slacks {
-            assert!(s.data.len() > 0);
+            assert!(!s.data.is_empty());
             assert!(s.slack_offset > 0);
             let block_size = reader.block_reader().superblock().block_size as usize;
             assert_eq!(s.data.len() + s.slack_offset, block_size);

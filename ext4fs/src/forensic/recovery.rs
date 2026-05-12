@@ -22,7 +22,9 @@ pub struct RecoveryResult {
 
 impl RecoveryResult {
     pub fn recovery_percentage(&self) -> f64 {
-        if self.expected_size == 0 { return 0.0; }
+        if self.expected_size == 0 {
+            return 0.0;
+        }
         (self.recovered_size as f64 / self.expected_size as f64) * 100.0
     }
 }
@@ -61,7 +63,7 @@ pub fn recover_file<R: Read + Seek>(
         });
     }
 
-    let block_size = reader.block_reader().block_size() as u64;
+    let block_size = u64::from(reader.block_reader().block_size());
     let mut data = Vec::with_capacity(expected_size as usize);
     let mut overwritten_ranges = Vec::new();
     let mut overwritten_bytes: u64 = 0;
@@ -80,24 +82,23 @@ pub fn recover_file<R: Read + Seek>(
                 let fill = remaining.min(block_size as usize);
                 data.extend(vec![0u8; fill]);
                 overwritten_bytes += fill as u64;
+            } else if let Ok(block_data) = reader.block_reader_mut().read_block(block) {
+                let remaining = (expected_size as usize).saturating_sub(data.len());
+                let to_copy = remaining.min(block_data.len());
+                data.extend_from_slice(&block_data[..to_copy]);
             } else {
-                match reader.block_reader_mut().read_block(block) {
-                    Ok(block_data) => {
-                        let remaining = (expected_size as usize).saturating_sub(data.len());
-                        let to_copy = remaining.min(block_data.len());
-                        data.extend_from_slice(&block_data[..to_copy]);
-                    }
-                    Err(_) => {
-                        let remaining = (expected_size as usize).saturating_sub(data.len());
-                        let fill = remaining.min(block_size as usize);
-                        data.extend(vec![0u8; fill]);
-                        overwritten_bytes += fill as u64;
-                    }
-                }
+                let remaining = (expected_size as usize).saturating_sub(data.len());
+                let fill = remaining.min(block_size as usize);
+                data.extend(vec![0u8; fill]);
+                overwritten_bytes += fill as u64;
             }
-            if data.len() >= expected_size as usize { break; }
+            if data.len() >= expected_size as usize {
+                break;
+            }
         }
-        if data.len() >= expected_size as usize { break; }
+        if data.len() >= expected_size as usize {
+            break;
+        }
     }
 
     data.truncate(expected_size as usize);
@@ -134,9 +135,9 @@ mod tests {
     /// Returns `(offset_of_inode_start, inode_size)`.
     fn inode_byte_offset(reader: &InodeReader<Cursor<Vec<u8>>>, ino: u64) -> (usize, usize) {
         let sb = reader.block_reader().superblock();
-        let ipg = sb.inodes_per_group as u64;
-        let inode_size = sb.inode_size as u64;
-        let block_size = sb.block_size as u64;
+        let ipg = u64::from(sb.inodes_per_group);
+        let inode_size = u64::from(sb.inode_size);
+        let block_size = u64::from(sb.block_size);
         let group = ((ino - 1) / ipg) as u32;
         let index = (ino - 1) % ipg;
         let inode_table = reader.block_reader().inode_table_block(group).unwrap();
@@ -150,7 +151,10 @@ mod tests {
             data: vec![1, 2, 3],
             expected_size: 100,
             recovered_size: 3,
-            overwritten_ranges: vec![BlockRange { start: 10, length: 97 }],
+            overwritten_ranges: vec![BlockRange {
+                start: 10,
+                length: 97,
+            }],
         };
         assert_eq!(result.recovery_percentage(), 3.0);
     }
@@ -170,12 +174,9 @@ mod tests {
     /// the `expected_size == 0` early-return path.
     #[test]
     fn recover_deleted_inode_21_hits_zero_size_path() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let result = recover_file(&mut reader, 21).unwrap();
         assert_eq!(result.expected_size, 0);
@@ -188,12 +189,9 @@ mod tests {
     /// Deleted inode 22 also has zeroed size.
     #[test]
     fn recover_deleted_inode_22_hits_zero_size_path() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let result = recover_file(&mut reader, 22).unwrap();
         assert_eq!(result.expected_size, 0);
@@ -204,24 +202,18 @@ mod tests {
     /// Exercises the main recovery loop with allocated blocks (overwritten path).
     #[test]
     fn recover_live_file_exercises_main_loop() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let result = recover_file(&mut reader, 12);
-        match result {
-            Ok(r) => {
-                assert!(r.expected_size > 0, "live file should have size > 0");
-                assert_eq!(r.data.len(), r.expected_size as usize);
-                assert!(r.recovery_percentage() >= 0.0);
-                assert!(r.recovery_percentage() <= 100.0);
-            }
-            Err(_) => {
-                // extent tree error is also a valid exercised path
-            }
+        if let Ok(r) = result {
+            assert!(r.expected_size > 0, "live file should have size > 0");
+            assert_eq!(r.data.len(), r.expected_size as usize);
+            assert!(r.recovery_percentage() >= 0.0);
+            assert!(r.recovery_percentage() <= 100.0);
+        } else {
+            // extent tree error is also a valid exercised path
         }
     }
 
@@ -229,19 +221,21 @@ mod tests {
     /// triggering the `inode_block_map` Err → RecoveryFailed path (lines 49-54).
     #[test]
     fn recover_zeroed_extent_tree_error() {
-        let reader_orig = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let reader_orig = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let mut data = forensic_raw().unwrap();
         // Use inode 12 (hello.txt) — a live file with size > 0
         let (off, _isz) = inode_byte_offset(&reader_orig, 12);
 
         // Verify inode 12 has nonzero size
-        let size_lo = u32::from_le_bytes([data[off + 0x04], data[off + 0x05], data[off + 0x06], data[off + 0x07]]);
+        let size_lo = u32::from_le_bytes([
+            data[off + 0x04],
+            data[off + 0x05],
+            data[off + 0x06],
+            data[off + 0x07],
+        ]);
         assert!(size_lo > 0, "inode 12 should have nonzero size");
 
         // Zero out i_block (offset 0x28..0x64 within the inode) to make extent tree invalid
@@ -265,12 +259,9 @@ mod tests {
     /// triggering the `mappings.is_empty()` → RecoveryFailed path (lines 57-61).
     #[test]
     fn recover_empty_mappings_error() {
-        let reader_orig = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let reader_orig = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let mut data = forensic_raw().unwrap();
         let (off, _isz) = inode_byte_offset(&reader_orig, 12);
@@ -287,7 +278,7 @@ mod tests {
         data[iblock_off + 5] = 0x00; // max = 4
         data[iblock_off + 6] = 0x00;
         data[iblock_off + 7] = 0x00; // depth = 0
-        // Zero the rest of i_block
+                                     // Zero the rest of i_block
         for b in &mut data[iblock_off + 8..iblock_off + 60] {
             *b = 0;
         }
@@ -308,12 +299,9 @@ mod tests {
     /// exercising the unallocated-block read path (lines 83-89).
     #[test]
     fn recover_with_unallocated_blocks() {
-        let reader_orig = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let reader_orig = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let mut data = forensic_raw().unwrap();
 
@@ -359,12 +347,9 @@ mod tests {
     /// fails, exercising the read error path (lines 90-95).
     #[test]
     fn recover_with_read_block_error() {
-        let reader_orig = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let reader_orig = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let mut data = forensic_raw().unwrap();
         let (off, _isz) = inode_byte_offset(&reader_orig, 12);
@@ -438,24 +423,18 @@ mod tests {
         let result = recover_file(&mut reader, 12);
         // This should either succeed (with zero-fill for the unreadable block)
         // or fail with some error — either way, the code path is exercised
-        match result {
-            Ok(r) => {
-                assert_eq!(r.data.len(), r.expected_size as usize);
-            }
-            Err(_) => {
-                // read_inode or inode_block_map failed — still exercises code
-            }
+        if let Ok(r) = result {
+            assert_eq!(r.data.len(), r.expected_size as usize);
+        } else {
+            // read_inode or inode_block_map failed — still exercises code
         }
     }
 
     #[test]
     fn recover_inode_out_of_range() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let result = recover_file(&mut reader, 999_999);
         assert!(result.is_err());

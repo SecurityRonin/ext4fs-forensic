@@ -36,15 +36,15 @@ bitflags! {
 
 #[derive(Debug, Clone)]
 pub struct GroupDescriptor {
-    pub block_bitmap:      u64,
-    pub inode_bitmap:      u64,
-    pub inode_table:       u64,
+    pub block_bitmap: u64,
+    pub inode_bitmap: u64,
+    pub inode_table: u64,
     pub free_blocks_count: u32,
     pub free_inodes_count: u32,
-    pub used_dirs_count:   u32,
-    pub flags:             GroupDescFlags,
-    pub itable_unused:     u32,
-    pub checksum:          u16,
+    pub used_dirs_count: u32,
+    pub flags: GroupDescFlags,
+    pub itable_unused: u32,
+    pub checksum: u16,
 }
 
 impl GroupDescriptor {
@@ -59,47 +59,53 @@ impl GroupDescriptor {
         }
 
         // Low 32-bit halves (always present for desc_size >= 32)
-        let block_bitmap_lo = le32(buf, 0x00) as u64;
-        let inode_bitmap_lo = le32(buf, 0x04) as u64;
-        let inode_table_lo  = le32(buf, 0x08) as u64;
-        let free_blocks_lo  = le16(buf, 0x0C) as u32;
-        let free_inodes_lo  = le16(buf, 0x0E) as u32;
-        let used_dirs_lo    = le16(buf, 0x10) as u32;
-        let flags_raw       = le16(buf, 0x12);
-        let itable_unused_lo = le16(buf, 0x1C) as u32;
-        let checksum        = le16(buf, 0x1E);
+        let block_bitmap_lo = u64::from(le32(buf, 0x00));
+        let inode_bitmap_lo = u64::from(le32(buf, 0x04));
+        let inode_table_lo = u64::from(le32(buf, 0x08));
+        let free_blocks_lo = u32::from(le16(buf, 0x0C));
+        let free_inodes_lo = u32::from(le16(buf, 0x0E));
+        let used_dirs_lo = u32::from(le16(buf, 0x10));
+        let flags_raw = le16(buf, 0x12);
+        let itable_unused_lo = u32::from(le16(buf, 0x1C));
+        let checksum = le16(buf, 0x1E);
 
         // High 32-bit halves (present only for desc_size >= 64)
-        let (block_bitmap, inode_bitmap, inode_table,
-             free_blocks_count, free_inodes_count, used_dirs_count, itable_unused) =
-            if desc_size >= 64 {
-                let bb_hi = (le32(buf, 0x20) as u64) << 32;
-                let ib_hi = (le32(buf, 0x24) as u64) << 32;
-                let it_hi = (le32(buf, 0x28) as u64) << 32;
-                let fb_hi = (le16(buf, 0x2C) as u32) << 16;
-                let fi_hi = (le16(buf, 0x2E) as u32) << 16;
-                let ud_hi = (le16(buf, 0x30) as u32) << 16;
-                let iu_hi = (le16(buf, 0x32) as u32) << 16;
-                (
-                    bb_hi | block_bitmap_lo,
-                    ib_hi | inode_bitmap_lo,
-                    it_hi | inode_table_lo,
-                    fb_hi | free_blocks_lo,
-                    fi_hi | free_inodes_lo,
-                    ud_hi | used_dirs_lo,
-                    iu_hi | itable_unused_lo,
-                )
-            } else {
-                (
-                    block_bitmap_lo,
-                    inode_bitmap_lo,
-                    inode_table_lo,
-                    free_blocks_lo,
-                    free_inodes_lo,
-                    used_dirs_lo,
-                    itable_unused_lo,
-                )
-            };
+        let (
+            block_bitmap,
+            inode_bitmap,
+            inode_table,
+            free_blocks_count,
+            free_inodes_count,
+            used_dirs_count,
+            itable_unused,
+        ) = if desc_size >= 64 {
+            let bb_hi = u64::from(le32(buf, 0x20)) << 32;
+            let ib_hi = u64::from(le32(buf, 0x24)) << 32;
+            let it_hi = u64::from(le32(buf, 0x28)) << 32;
+            let fb_hi = u32::from(le16(buf, 0x2C)) << 16;
+            let fi_hi = u32::from(le16(buf, 0x2E)) << 16;
+            let ud_hi = u32::from(le16(buf, 0x30)) << 16;
+            let iu_hi = u32::from(le16(buf, 0x32)) << 16;
+            (
+                bb_hi | block_bitmap_lo,
+                ib_hi | inode_bitmap_lo,
+                it_hi | inode_table_lo,
+                fb_hi | free_blocks_lo,
+                fi_hi | free_inodes_lo,
+                ud_hi | used_dirs_lo,
+                iu_hi | itable_unused_lo,
+            )
+        } else {
+            (
+                block_bitmap_lo,
+                inode_bitmap_lo,
+                inode_table_lo,
+                free_blocks_lo,
+                free_inodes_lo,
+                used_dirs_lo,
+                itable_unused_lo,
+            )
+        };
 
         let flags = GroupDescFlags::from_bits_truncate(flags_raw);
 
@@ -171,8 +177,8 @@ mod tests {
         buf[0x00] = 100; // bg_block_bitmap_lo
         buf[0x04] = 101; // bg_inode_bitmap_lo
         buf[0x08] = 102; // bg_inode_table_lo
-        buf[0x0C] = 50;  // bg_free_blocks_count_lo
-        buf[0x0E] = 30;  // bg_free_inodes_count_lo
+        buf[0x0C] = 50; // bg_free_blocks_count_lo
+        buf[0x0E] = 30; // bg_free_inodes_count_lo
         buf[0x12] = 0x04; // bg_flags (INODE_ZEROED)
 
         let gd = GroupDescriptor::parse(&buf, 32).unwrap();
@@ -210,13 +216,16 @@ mod tests {
     #[test]
     fn verify_group_descriptor_checksum_on_forensic_img() {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/forensic.img");
-        let data = match std::fs::read(path) {
-            Ok(d) => d,
-            Err(_) => { eprintln!("skip: forensic.img not found"); return; }
+        let data = if let Ok(d) = std::fs::read(path) { d } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         use crate::ondisk::superblock::Superblock;
         let sb = Superblock::parse(&data[1024..]).unwrap();
-        assert!(sb.has_metadata_csum(), "forensic.img should have metadata_csum");
+        assert!(
+            sb.has_metadata_csum(),
+            "forensic.img should have metadata_csum"
+        );
 
         let desc_size = sb.desc_size;
         // GDT starts at block 1 for 4096-byte block size (block 0 is boot+superblock)

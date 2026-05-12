@@ -105,12 +105,9 @@ mod tests {
 
     #[test]
     fn search_hello_in_allocated() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         let hits = search_blocks(&mut reader, b"Hello", SearchScope::Allocated, 16).unwrap();
         assert!(!hits.is_empty(), "should find 'Hello' in allocated blocks");
@@ -121,12 +118,9 @@ mod tests {
 
     #[test]
     fn search_nonexistent_pattern() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         let hits = search_blocks(
             &mut reader,
@@ -140,12 +134,9 @@ mod tests {
 
     #[test]
     fn search_empty_pattern_returns_empty() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         let hits = search_blocks(&mut reader, b"", SearchScope::All, 16).unwrap();
         assert!(hits.is_empty());
@@ -153,12 +144,9 @@ mod tests {
 
     #[test]
     fn search_ext4_magic_in_all() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         // Search for the label "forensic-test" which was set during mkfs
         let hits = search_blocks(&mut reader, b"forensic-test", SearchScope::All, 8).unwrap();
@@ -170,29 +158,22 @@ mod tests {
 
     #[test]
     fn search_unallocated_scope() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         // Search for deleted file content in unallocated blocks
         // "recover me" was in deleted-file.txt
-        let hits =
-            search_blocks(&mut reader, b"recover me", SearchScope::Unallocated, 16).unwrap();
+        let hits = search_blocks(&mut reader, b"recover me", SearchScope::Unallocated, 16).unwrap();
         // May or may not find it depending on whether blocks were zeroed
         let _ = hits; // just verify no error
     }
 
     #[test]
     fn search_hit_has_valid_context() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         let hits = search_blocks(&mut reader, b"Hello", SearchScope::Allocated, 32).unwrap();
         if let Some(hit) = hits.first() {

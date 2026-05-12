@@ -26,11 +26,11 @@ pub fn inode_history<R: Read + Seek>(
     let (ipg, inode_size_u64, inode_size_u16, block_size, journal_ino) = {
         let sb = reader.block_reader().superblock();
         (
-            sb.inodes_per_group as u64,
-            sb.inode_size as u64,
+            u64::from(sb.inodes_per_group),
+            u64::from(sb.inode_size),
             sb.inode_size,
-            sb.block_size as u64,
-            sb.journal_inum as u64,
+            u64::from(sb.block_size),
+            u64::from(sb.journal_inum),
         )
     };
 
@@ -63,7 +63,7 @@ pub fn inode_history<R: Read + Seek>(
                         {
                             if inode.mode != 0 {
                                 versions.push(InodeVersion {
-                                    sequence: txn.sequence as u64,
+                                    sequence: u64::from(txn.sequence),
                                     commit_time: txn.commit_seconds as u64,
                                     inode,
                                 });
@@ -95,12 +95,9 @@ mod tests {
 
     #[test]
     fn inode_history_for_hello_txt() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         let journal = parse_journal(&mut reader).unwrap();
         let versions = inode_history(&mut reader, &journal, 12).unwrap();
@@ -115,12 +112,9 @@ mod tests {
 
     #[test]
     fn inode_history_for_deleted_file() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         let journal = parse_journal(&mut reader).unwrap();
         // Inode 21 was created then deleted
@@ -131,12 +125,9 @@ mod tests {
 
     #[test]
     fn inode_history_nonexistent() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         let journal = parse_journal(&mut reader).unwrap();
         let versions = inode_history(&mut reader, &journal, 999999).unwrap();
@@ -145,12 +136,9 @@ mod tests {
 
     #[test]
     fn inode_history_sorted_by_sequence() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         let journal = parse_journal(&mut reader).unwrap();
         let versions = inode_history(&mut reader, &journal, 12).unwrap();

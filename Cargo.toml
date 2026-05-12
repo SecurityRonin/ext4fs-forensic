@@ -1,3 +1,30 @@
 [workspace]
 members = ["ext4fs", "ext4fs-fuse", "ext4fs-cli"]
 resolver = "2"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+correctness = { level = "deny", priority = -1 }
+suspicious = { level = "deny", priority = -1 }
+module_name_repetitions = { level = "allow", priority = 1 }
+must_use_candidate = { level = "allow", priority = 1 }
+missing_errors_doc = { level = "allow", priority = 1 }
+missing_panics_doc = { level = "allow", priority = 1 }
+cast_possible_truncation = { level = "allow", priority = 1 }
+cast_possible_wrap = { level = "allow", priority = 1 }
+cast_sign_loss = { level = "allow", priority = 1 }
+# binary parser patterns: field names mirror on-disk spec (ib_hi, it_hi, etc.)
+similar_names = { level = "allow", priority = 1 }
+# forensic recovery uses float comparisons for scoring thresholds
+float_cmp = { level = "allow", priority = 1 }
+# helper closures defined inside functions are idiomatic in parsers
+items_after_statements = { level = "allow", priority = 1 }
+# complex parsing functions legitimately exceed line limits
+too_many_lines = { level = "allow", priority = 1 }
+# doc comments intentionally use plain text for field names
+doc_markdown = { level = "allow", priority = 1 }
+# u64 as f64 used for forensic scoring ratios, precision loss is acceptable
+cast_precision_loss = { level = "allow", priority = 1 }

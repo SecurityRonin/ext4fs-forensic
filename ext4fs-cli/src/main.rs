@@ -5,7 +5,10 @@ mod mcp;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "ext4fs", about = "CLI and MCP server for ext4 forensic analysis")]
+#[command(
+    name = "ext4fs",
+    about = "CLI and MCP server for ext4 forensic analysis"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,

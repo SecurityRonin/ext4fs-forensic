@@ -21,8 +21,12 @@ impl<R: Read + Seek> BlockReader<R> {
         // GDT starts in block after superblock.
         // For 1024-byte blocks, superblock occupies block 1, GDT starts at block 2.
         // For larger blocks, both fit in block 0, GDT starts at block 1.
-        let gdt_block = if superblock.block_size == 1024 { 2u64 } else { 1u64 };
-        let gdt_offset = gdt_block * superblock.block_size as u64;
+        let gdt_block = if superblock.block_size == 1024 {
+            2u64
+        } else {
+            1u64
+        };
+        let gdt_offset = gdt_block * u64::from(superblock.block_size);
         let group_count = superblock.group_count();
         let desc_size = superblock.desc_size as usize;
         let gdt_size = group_count as usize * desc_size;
@@ -38,7 +42,11 @@ impl<R: Read + Seek> BlockReader<R> {
             group_descs.push(gd);
         }
 
-        Ok(BlockReader { source, superblock, group_descs })
+        Ok(BlockReader {
+            source,
+            superblock,
+            group_descs,
+        })
     }
 
     pub fn superblock(&self) -> &Superblock {
@@ -64,7 +72,7 @@ impl<R: Read + Seek> BlockReader<R> {
                 max: self.superblock.blocks_count,
             });
         }
-        let offset = block_num * self.superblock.block_size as u64;
+        let offset = block_num * u64::from(self.superblock.block_size);
         self.read_bytes(offset, self.superblock.block_size as usize)
     }
 
@@ -79,7 +87,7 @@ impl<R: Read + Seek> BlockReader<R> {
                 max: self.superblock.blocks_count,
             });
         }
-        let offset = start * self.superblock.block_size as u64;
+        let offset = start * u64::from(self.superblock.block_size);
         let len = count as usize * self.superblock.block_size as usize;
         self.read_bytes(offset, len)
     }
@@ -92,10 +100,15 @@ impl<R: Read + Seek> BlockReader<R> {
     }
 
     pub fn group_descriptor(&self, group: u32) -> Result<&GroupDescriptor> {
-        self.group_descs.get(group as usize).ok_or(Ext4Error::CorruptMetadata {
-            structure: "group_descriptor",
-            detail: format!("group {group} out of range (max {})", self.group_descs.len()),
-        })
+        self.group_descs
+            .get(group as usize)
+            .ok_or(Ext4Error::CorruptMetadata {
+                structure: "group_descriptor",
+                detail: format!(
+                    "group {group} out of range (max {})",
+                    self.group_descs.len()
+                ),
+            })
     }
 
     pub fn inode_bitmap_block(&self, group: u32) -> Result<u64> {
@@ -135,7 +148,10 @@ mod tests {
     fn reject_too_small_image() {
         let data = vec![0u8; 512];
         let err = BlockReader::open(Cursor::new(data)).unwrap_err();
-        assert!(matches!(err, crate::error::Ext4Error::Io(_) | crate::error::Ext4Error::TooShort { .. }));
+        assert!(matches!(
+            err,
+            crate::error::Ext4Error::Io(_) | crate::error::Ext4Error::TooShort { .. }
+        ));
     }
 
     #[test]
@@ -151,6 +167,9 @@ mod tests {
         let data = load_minimal_image().expect("minimal.img required");
         let mut reader = BlockReader::open(Cursor::new(data)).unwrap();
         let err = reader.read_block(u64::MAX).unwrap_err();
-        assert!(matches!(err, crate::error::Ext4Error::BlockOutOfRange { .. }));
+        assert!(matches!(
+            err,
+            crate::error::Ext4Error::BlockOutOfRange { .. }
+        ));
     }
 }

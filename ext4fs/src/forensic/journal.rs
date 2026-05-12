@@ -50,7 +50,11 @@ pub fn parse_journal<R: Read + Seek>(reader: &mut InodeReader<R>) -> Result<Jour
     // Copy superblock fields before mutable borrow
     let (has_journal, journal_ino, fs_block_size) = {
         let sb = reader.block_reader().superblock();
-        (sb.has_journal(), sb.journal_inum as u64, sb.block_size as usize)
+        (
+            sb.has_journal(),
+            u64::from(sb.journal_inum),
+            sb.block_size as usize,
+        )
     };
 
     if !has_journal {
@@ -105,10 +109,7 @@ pub fn parse_journal<R: Read + Seek>(reader: &mut InodeReader<R>) -> Result<Jour
                         if tag_offset + 16 > block_data.len() {
                             break;
                         }
-                        let tag = JournalBlockTag::parse_v3(
-                            &block_data[tag_offset..],
-                            is_64bit,
-                        );
+                        let tag = JournalBlockTag::parse_v3(&block_data[tag_offset..], is_64bit);
                         pending_tags.push(tag.blocknr);
                         let is_last = tag.last_tag;
                         if tag.tag_size == 0 {
@@ -186,11 +187,11 @@ pub fn inode_history<R: Read + Seek>(
     let (ipg, inode_size_u64, inode_size_u16, block_size, journal_ino) = {
         let sb = reader.block_reader().superblock();
         (
-            sb.inodes_per_group as u64,
-            sb.inode_size as u64,
+            u64::from(sb.inodes_per_group),
+            u64::from(sb.inode_size),
             sb.inode_size,
-            sb.block_size as u64,
-            sb.journal_inum as u64,
+            u64::from(sb.block_size),
+            u64::from(sb.journal_inum),
         )
     };
 
@@ -266,12 +267,9 @@ mod tests {
 
     #[test]
     fn parse_journal_from_minimal() {
-        let mut reader = match open_minimal() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: minimal.img not found");
-                return;
-            }
+        let mut reader = if let Some(r) = open_minimal() { r } else {
+            eprintln!("skip: minimal.img not found");
+            return;
         };
         if !reader.block_reader().superblock().has_journal() {
             eprintln!("skip: no journal in image");
@@ -284,12 +282,9 @@ mod tests {
 
     #[test]
     fn transactions_have_commit_timestamps() {
-        let mut reader = match open_minimal() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: minimal.img not found");
-                return;
-            }
+        let mut reader = if let Some(r) = open_minimal() { r } else {
+            eprintln!("skip: minimal.img not found");
+            return;
         };
         if !reader.block_reader().superblock().has_journal() {
             return;
@@ -306,12 +301,9 @@ mod tests {
 
     #[test]
     fn parse_journal_no_journal_error() {
-        let mut reader = match open_minimal() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: minimal.img not found");
-                return;
-            }
+        let mut reader = if let Some(r) = open_minimal() { r } else {
+            eprintln!("skip: minimal.img not found");
+            return;
         };
         // minimal.img has no journal feature
         assert!(!reader.block_reader().superblock().has_journal());
@@ -327,12 +319,9 @@ mod tests {
 
     #[test]
     fn parse_journal_from_forensic() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         assert!(reader.block_reader().superblock().has_journal());
         let journal = parse_journal(&mut reader).unwrap();
@@ -348,12 +337,9 @@ mod tests {
 
     #[test]
     fn forensic_transactions_have_sequence_and_timestamps() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let journal = parse_journal(&mut reader).unwrap();
         for txn in &journal.transactions {
@@ -369,19 +355,13 @@ mod tests {
 
     #[test]
     fn forensic_transactions_have_mappings() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let journal = parse_journal(&mut reader).unwrap();
         // At least some transactions should have block mappings
-        let has_mappings = journal
-            .transactions
-            .iter()
-            .any(|t| !t.mappings.is_empty());
+        let has_mappings = journal.transactions.iter().any(|t| !t.mappings.is_empty());
         assert!(has_mappings, "some transactions should have block mappings");
 
         // Verify mapping fields are reasonable
@@ -394,12 +374,9 @@ mod tests {
 
     #[test]
     fn forensic_journal_sequence_monotonic() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let journal = parse_journal(&mut reader).unwrap();
         // Transactions should be in increasing sequence order
@@ -419,12 +396,9 @@ mod tests {
 
     #[test]
     fn inode_history_for_known_inode() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let journal = parse_journal(&mut reader).unwrap();
         // Inode 12 is hello.txt — should appear in journal if inode table
@@ -443,12 +417,9 @@ mod tests {
 
     #[test]
     fn inode_history_for_deleted_inode() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let journal = parse_journal(&mut reader).unwrap();
         // Inode 21 was deleted — may have historical versions showing
@@ -462,19 +433,16 @@ mod tests {
 
     #[test]
     fn inode_history_for_nonexistent_inode() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let journal = parse_journal(&mut reader).unwrap();
         // Use a high inode number that likely has no journal history
         // but is within range (use inode count from superblock)
         let max_ino = reader.block_reader().superblock().inodes_count;
         if max_ino > 100 {
-            let versions = inode_history(&mut reader, &journal, (max_ino - 1) as u64).unwrap();
+            let versions = inode_history(&mut reader, &journal, u64::from(max_ino - 1)).unwrap();
             // Should return empty or minimal versions
             // (just checking it doesn't crash)
             let _ = versions;
@@ -487,19 +455,16 @@ mod tests {
 
     #[test]
     fn journal_corrupt_truncated_data() {
-        let mut data = match forensic_raw() {
-            Some(d) => d,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut data = if let Some(d) = forensic_raw() { d } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         // Find the journal inode data and corrupt it by zeroing the journal
         // superblock area. The journal inode is typically inode 8.
         // We'll read the image, find the journal, then corrupt it.
         let reader = open_forensic().unwrap();
         let sb = reader.block_reader().superblock();
-        let journal_ino = sb.journal_inum as u64;
+        let journal_ino = u64::from(sb.journal_inum);
         assert!(journal_ino > 0);
 
         // Read journal inode to find its data blocks
@@ -531,16 +496,13 @@ mod tests {
 
     #[test]
     fn journal_corrupt_zero_block_size() {
-        let mut data = match forensic_raw() {
-            Some(d) => d,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let mut data = if let Some(d) = forensic_raw() { d } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let reader = open_forensic().unwrap();
         let sb = reader.block_reader().superblock();
-        let journal_ino = sb.journal_inum as u64;
+        let journal_ino = u64::from(sb.journal_inum);
 
         let mut reader2 = open_forensic().unwrap();
         let mappings = reader2.inode_block_map(journal_ino).unwrap();
@@ -584,25 +546,22 @@ mod tests {
 
     #[test]
     fn journal_corrupt_too_small() {
-        let data = match forensic_raw() {
-            Some(d) => d,
-            None => {
-                eprintln!("skip: forensic.img not found");
-                return;
-            }
+        let data = if let Some(d) = forensic_raw() { d } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let reader = open_forensic().unwrap();
         let sb = reader.block_reader().superblock();
-        let journal_ino = sb.journal_inum as u64;
+        let journal_ino = u64::from(sb.journal_inum);
 
         // Patch the journal inode's size to be very small (< 1024)
         // so we trigger the "journal too small" path
         let mut patched = data.clone();
 
         // Find inode position for journal inode
-        let ipg = sb.inodes_per_group as u64;
-        let inode_size = sb.inode_size as u64;
-        let bs = sb.block_size as u64;
+        let ipg = u64::from(sb.inodes_per_group);
+        let inode_size = u64::from(sb.inode_size);
+        let bs = u64::from(sb.block_size);
         let group = ((journal_ino - 1) / ipg) as u32;
         let index = (journal_ino - 1) % ipg;
         let inode_table = reader.block_reader().inode_table_block(group).unwrap();
@@ -624,10 +583,7 @@ mod tests {
         let result = parse_journal(&mut reader3);
         match result {
             Err(Ext4Error::JournalCorrupt(msg)) => {
-                assert!(
-                    msg.contains("too small"),
-                    "expected 'too small' in: {msg}"
-                );
+                assert!(msg.contains("too small"), "expected 'too small' in: {msg}");
             }
             // The read_inode_data may truncate differently; any error is OK
             Err(_) => {}

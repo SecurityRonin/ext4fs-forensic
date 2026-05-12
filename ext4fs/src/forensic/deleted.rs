@@ -161,9 +161,9 @@ mod tests {
 
     #[test]
     fn no_deleted_inodes_in_fresh_image() {
-        let mut reader = match open_minimal() {
-            Some(r) => r,
-            None => { eprintln!("skip: minimal.img not found"); return; }
+        let mut reader = if let Some(r) = open_minimal() { r } else {
+            eprintln!("skip: minimal.img not found");
+            return;
         };
         let deleted = find_deleted_inodes(&mut reader).unwrap();
         // A freshly created image should have no deleted inodes
@@ -174,7 +174,8 @@ mod tests {
     fn deleted_inode_has_dtime_set() {
         use crate::ondisk::Inode;
         let mut buf = vec![0u8; 256];
-        buf[0x00] = 0x80; buf[0x01] = 0x81; // regular file, mode 0600
+        buf[0x00] = 0x80;
+        buf[0x01] = 0x81; // regular file, mode 0600
         buf[0x04] = 100; // size = 100
         buf[0x14] = 0x01; // dtime = 1 (deletion time set)
         buf[0x1A] = 0; // links_count = 0
@@ -193,22 +194,32 @@ mod tests {
 
     #[test]
     fn forensic_image_has_deleted_inodes() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let deleted = find_deleted_inodes(&mut reader).unwrap();
-        assert!(deleted.len() >= 2, "expected at least 2 deleted inodes, got {}", deleted.len());
+        assert!(
+            deleted.len() >= 2,
+            "expected at least 2 deleted inodes, got {}",
+            deleted.len()
+        );
         let inos: Vec<u64> = deleted.iter().map(|d| d.ino).collect();
-        assert!(inos.contains(&21), "expected inode 21 in deleted list, got {inos:?}");
-        assert!(inos.contains(&22), "expected inode 22 in deleted list, got {inos:?}");
+        assert!(
+            inos.contains(&21),
+            "expected inode 21 in deleted list, got {inos:?}"
+        );
+        assert!(
+            inos.contains(&22),
+            "expected inode 22 in deleted list, got {inos:?}"
+        );
     }
 
     #[test]
     fn deleted_inode_has_nonzero_dtime() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let deleted = find_deleted_inodes(&mut reader).unwrap();
         assert!(!deleted.is_empty(), "expected deleted inodes");
@@ -219,9 +230,9 @@ mod tests {
 
     #[test]
     fn deleted_inode_recoverability_is_valid() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let deleted = find_deleted_inodes(&mut reader).unwrap();
         assert!(!deleted.is_empty(), "expected deleted inodes");
@@ -229,29 +240,36 @@ mod tests {
             assert!(
                 (0.0..=1.0).contains(&d.recoverability),
                 "inode {} recoverability {} not in [0.0, 1.0]",
-                d.ino, d.recoverability
+                d.ino,
+                d.recoverability
             );
         }
     }
 
     #[test]
     fn deleted_inode_21_is_regular_file() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let deleted = find_deleted_inodes(&mut reader).unwrap();
-        let ino21 = deleted.iter().find(|d| d.ino == 21)
+        let ino21 = deleted
+            .iter()
+            .find(|d| d.ino == 21)
             .expect("inode 21 should be in deleted list");
-        assert_eq!(ino21.file_type, FileType::RegularFile,
-            "inode 21 should be RegularFile, got {:?}", ino21.file_type);
+        assert_eq!(
+            ino21.file_type,
+            FileType::RegularFile,
+            "inode 21 should be RegularFile, got {:?}",
+            ino21.file_type
+        );
     }
 
     #[test]
     fn find_orphan_inodes_on_forensic_img() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip");
+            return;
         };
         // Orphans: links_count==0, dtime==0, mode!=0
         // forensic.img may or may not have orphans, but the function should not error
@@ -269,12 +287,16 @@ mod tests {
         // This is what happens during a crash mid-deletion or unlinked-but-open files
         use crate::ondisk::Inode;
         let mut buf = vec![0u8; 256];
-        buf[0x00] = 0x80; buf[0x01] = 0x81; // regular file, mode 0600
+        buf[0x00] = 0x80;
+        buf[0x01] = 0x81; // regular file, mode 0600
         buf[0x04] = 100; // size = 100
-        // dtime stays 0 (not set)
+                         // dtime stays 0 (not set)
         buf[0x1A] = 0; // links_count = 0
         let inode = Inode::parse(&buf, 256).unwrap();
         assert!(!inode.is_deleted(), "no dtime means not deleted");
-        assert!(inode.is_orphan(), "links_count=0, dtime=0, mode!=0 is orphan");
+        assert!(
+            inode.is_orphan(),
+            "links_count=0, dtime=0, mode!=0 is orphan"
+        );
     }
 }

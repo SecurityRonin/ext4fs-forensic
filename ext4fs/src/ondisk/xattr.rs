@@ -206,7 +206,10 @@ mod tests {
     fn reject_bad_xattr_magic() {
         let buf = vec![0u8; 32];
         let err = XattrBlockHeader::parse(&buf).unwrap_err();
-        assert!(matches!(err, crate::error::Ext4Error::CorruptMetadata { .. }));
+        assert!(matches!(
+            err,
+            crate::error::Ext4Error::CorruptMetadata { .. }
+        ));
     }
 
     #[test]

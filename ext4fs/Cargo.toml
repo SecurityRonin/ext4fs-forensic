@@ -2,6 +2,7 @@
 name = "ext4fs"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.85"
 description = "Forensic-grade ext4 filesystem parser"
 license = "MIT"
 
@@ -18,3 +19,6 @@ crc = "3"
 version = "0.2"
 path = "../../ewf/ewf"
 optional = true
+
+[lints]
+workspace = true

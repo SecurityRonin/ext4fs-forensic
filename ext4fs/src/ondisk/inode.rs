@@ -41,16 +41,19 @@ impl Ord for Timestamp {
 fn decode_timestamp(secs_raw: u32, extra: Option<u32>) -> Timestamp {
     match extra {
         None => Timestamp {
-            seconds: secs_raw as i32 as i64,
+            seconds: i64::from(secs_raw as i32),
             nanoseconds: 0,
         },
         Some(ex) => {
-            let epoch_bits = (ex & 0x3) as i64;
+            let epoch_bits = i64::from(ex & 0x3);
             let nanoseconds = ex >> 2;
             // The 34-bit seconds: upper 2 bits come from the extra word, the
             // lower 32 bits are the raw seconds field treated as unsigned.
-            let seconds = ((epoch_bits) << 32) | (secs_raw as i64);
-            Timestamp { seconds, nanoseconds }
+            let seconds = ((epoch_bits) << 32) | i64::from(secs_raw);
+            Timestamp {
+                seconds,
+                nanoseconds,
+            }
         }
     }
 }
@@ -176,43 +179,49 @@ impl Inode {
         }
 
         // --- helpers ---
-        let u16_at = |off: usize| -> u16 {
-            u16::from_le_bytes([buf[off], buf[off + 1]])
-        };
+        let u16_at = |off: usize| -> u16 { u16::from_le_bytes([buf[off], buf[off + 1]]) };
         let u32_at = |off: usize| -> u32 {
             u32::from_le_bytes([buf[off], buf[off + 1], buf[off + 2], buf[off + 3]])
         };
 
         // --- base fields ---
         let mode = u16_at(0x00);
-        let uid_lo = u16_at(0x02) as u32;
-        let size_lo = u32_at(0x04) as u64;
+        let uid_lo = u32::from(u16_at(0x02));
+        let size_lo = u64::from(u32_at(0x04));
         let atime_raw = u32_at(0x08);
         let ctime_raw = u32_at(0x0C);
         let mtime_raw = u32_at(0x10);
         let dtime = u32_at(0x14);
-        let gid_lo = u16_at(0x18) as u32;
+        let gid_lo = u32::from(u16_at(0x18));
         let links_count = u16_at(0x1A);
-        let blocks_lo = u32_at(0x1C) as u64;
+        let blocks_lo = u64::from(u32_at(0x1C));
         let flags_raw = u32_at(0x20);
 
         let mut i_block = [0u8; 60];
         i_block.copy_from_slice(&buf[0x28..0x64]);
 
         let generation = u32_at(0x64);
-        let file_acl_lo = u32_at(0x68) as u64;
-        let size_hi = u32_at(0x6C) as u64;
-        let blocks_hi = u16_at(0x74) as u64;
-        let file_acl_hi = u16_at(0x76) as u64;
-        let uid_hi = u16_at(0x78) as u32;
-        let gid_hi = u16_at(0x7A) as u32;
-        let checksum_lo = u16_at(0x7C) as u32;
+        let file_acl_lo = u64::from(u32_at(0x68));
+        let size_hi = u64::from(u32_at(0x6C));
+        let blocks_hi = u64::from(u16_at(0x74));
+        let file_acl_hi = u64::from(u16_at(0x76));
+        let uid_hi = u32::from(u16_at(0x78));
+        let gid_hi = u32::from(u16_at(0x7A));
+        let checksum_lo = u32::from(u16_at(0x7C));
 
         // --- extended fields (present when inode_size > 128 and buf is large enough) ---
-        let (extra_isize, checksum_hi, ctime_extra, mtime_extra, atime_extra,
-             crtime_raw, crtime_extra, projid) = if buf.len() > INODE_BASE_SIZE {
+        let (
+            extra_isize,
+            checksum_hi,
+            ctime_extra,
+            mtime_extra,
+            atime_extra,
+            crtime_raw,
+            crtime_extra,
+            projid,
+        ) = if buf.len() > INODE_BASE_SIZE {
             let extra_isize = u16_at(0x80);
-            let checksum_hi = u16_at(0x82) as u32;
+            let checksum_hi = u32::from(u16_at(0x82));
             // Extended timestamps are present when extra_isize >= 28 (covers up to 0x94+4 = 0x98).
             // extra_isize field is at 0x80; extended ts start at 0x84.
             // We need buf to contain at least 0x80 + extra_isize bytes.
@@ -235,7 +244,16 @@ impl Inode {
             } else {
                 0
             };
-            (extra_isize, checksum_hi, ctime_extra, mtime_extra, atime_extra, crtime_raw, crtime_extra, projid)
+            (
+                extra_isize,
+                checksum_hi,
+                ctime_extra,
+                mtime_extra,
+                atime_extra,
+                crtime_raw,
+                crtime_extra,
+                projid,
+            )
         } else {
             (0, 0, None, None, None, None, None, 0)
         };
@@ -397,7 +415,10 @@ mod tests {
         let atime: u32 = 1_700_000_000;
         buf[0x08..0x0C].copy_from_slice(&atime.to_le_bytes());
         buf[0x1A] = 1; // links_count
-        buf[0x20] = 0x00; buf[0x21] = 0x00; buf[0x22] = 0x08; buf[0x23] = 0x00; // EXTENTS flag
+        buf[0x20] = 0x00;
+        buf[0x21] = 0x00;
+        buf[0x22] = 0x08;
+        buf[0x23] = 0x00; // EXTENTS flag
         buf[0x80] = 32; // extra_isize
         let crtime: u32 = 1_699_000_000;
         buf[0x90..0x94].copy_from_slice(&crtime.to_le_bytes());
@@ -447,7 +468,9 @@ mod tests {
     #[test]
     fn i_block_60_bytes() {
         let mut buf = make_inode_bytes(0x8180, 100);
-        for i in 0..60 { buf[0x28 + i] = i as u8; }
+        for i in 0..60 {
+            buf[0x28 + i] = i as u8;
+        }
         let inode = Inode::parse(&buf, 256).unwrap();
         assert_eq!(inode.i_block.len(), 60);
         assert_eq!(inode.i_block[0], 0);
@@ -457,13 +480,16 @@ mod tests {
     #[test]
     fn verify_inode_checksum_on_forensic_img() {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/forensic.img");
-        let data = match std::fs::read(path) {
-            Ok(d) => d,
-            Err(_) => { eprintln!("skip: forensic.img not found"); return; }
+        let data = if let Ok(d) = std::fs::read(path) { d } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         use crate::ondisk::superblock::Superblock;
         let sb = Superblock::parse(&data[1024..]).unwrap();
-        assert!(sb.has_metadata_csum(), "forensic.img should have metadata_csum");
+        assert!(
+            sb.has_metadata_csum(),
+            "forensic.img should have metadata_csum"
+        );
 
         let inode_size = sb.inode_size;
         let inodes_per_group = sb.inodes_per_group;
@@ -475,13 +501,14 @@ mod tests {
         let gd = GroupDescriptor::parse(
             &data[gdt_offset..gdt_offset + desc_size as usize],
             desc_size,
-        ).unwrap();
+        )
+        .unwrap();
 
         // Read inode 12 (hello.txt) raw bytes from inode table
         let ino: u32 = 12;
         let index = (ino - 1) % inodes_per_group;
-        let byte_offset = gd.inode_table * sb.block_size as u64 + index as u64 * inode_size as u64;
-        let raw = &data[byte_offset as usize..(byte_offset + inode_size as u64) as usize];
+        let byte_offset = gd.inode_table * u64::from(sb.block_size) + u64::from(index) * u64::from(inode_size);
+        let raw = &data[byte_offset as usize..(byte_offset + u64::from(inode_size)) as usize];
         let inode = Inode::parse(raw, inode_size).unwrap();
 
         assert!(
@@ -511,7 +538,7 @@ mod tests {
     #[test]
     fn inode_predicate_has_htree() {
         let mut buf = make_inode_bytes(0x4180, 4096); // directory
-        // Set INDEX flag (0x1000)
+                                                      // Set INDEX flag (0x1000)
         let flags = 0x1000u32;
         buf[0x20..0x24].copy_from_slice(&flags.to_le_bytes());
         let inode = Inode::parse(&buf, 256).unwrap();
@@ -531,7 +558,7 @@ mod tests {
     fn inode_predicate_is_orphan() {
         let mut buf = make_inode_bytes(0x8180, 100);
         buf[0x1A..0x1C].copy_from_slice(&0u16.to_le_bytes()); // links_count = 0
-        // dtime stays 0
+                                                              // dtime stays 0
         let inode = Inode::parse(&buf, 256).unwrap();
         assert!(inode.is_orphan());
         assert!(!inode.is_deleted());

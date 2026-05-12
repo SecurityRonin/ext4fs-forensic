@@ -19,9 +19,16 @@ pub enum Ext4Error {
     /// The requested block number is out of range.
     BlockOutOfRange { block: u64, max: u64 },
     /// A metadata structure is corrupt.
-    CorruptMetadata { structure: &'static str, detail: String },
+    CorruptMetadata {
+        structure: &'static str,
+        detail: String,
+    },
     /// CRC32C checksum mismatch.
-    ChecksumMismatch { structure: &'static str, expected: u32, computed: u32 },
+    ChecksumMismatch {
+        structure: &'static str,
+        expected: u32,
+        computed: u32,
+    },
     /// Path does not exist.
     PathNotFound(String),
     /// Expected a directory, found something else.
@@ -37,30 +44,53 @@ pub enum Ext4Error {
     /// Could not recover file data.
     RecoveryFailed { ino: u64, reason: String },
     /// Insufficient data to parse a structure.
-    TooShort { structure: &'static str, expected: usize, found: usize },
+    TooShort {
+        structure: &'static str,
+        expected: usize,
+        found: usize,
+    },
 }
 
 impl fmt::Display for Ext4Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Io(e) => write!(f, "I/O error: {e}"),
-            Self::InvalidMagic { found } => write!(f, "invalid superblock magic: 0x{found:04X} (expected 0xEF53)"),
+            Self::InvalidMagic { found } => write!(
+                f,
+                "invalid superblock magic: 0x{found:04X} (expected 0xEF53)"
+            ),
             Self::InvalidSuperblock(msg) => write!(f, "invalid superblock: {msg}"),
             Self::UnsupportedFeature(feat) => write!(f, "unsupported feature: {feat}"),
             Self::InodeOutOfRange { ino, max } => write!(f, "inode {ino} out of range (max {max})"),
-            Self::BlockOutOfRange { block, max } => write!(f, "block {block} out of range (max {max})"),
-            Self::CorruptMetadata { structure, detail } => write!(f, "corrupt {structure}: {detail}"),
-            Self::ChecksumMismatch { structure, expected, computed } => {
+            Self::BlockOutOfRange { block, max } => {
+                write!(f, "block {block} out of range (max {max})")
+            }
+            Self::CorruptMetadata { structure, detail } => {
+                write!(f, "corrupt {structure}: {detail}")
+            }
+            Self::ChecksumMismatch {
+                structure,
+                expected,
+                computed,
+            } => {
                 write!(f, "checksum mismatch in {structure}: expected 0x{expected:08X}, computed 0x{computed:08X}")
             }
             Self::PathNotFound(p) => write!(f, "path not found: {p}"),
             Self::NotADirectory(p) => write!(f, "not a directory: {p}"),
             Self::NotASymlink(p) => write!(f, "not a symlink: {p}"),
-            Self::SymlinkLoop { path, depth } => write!(f, "symlink loop at {path} (depth {depth})"),
+            Self::SymlinkLoop { path, depth } => {
+                write!(f, "symlink loop at {path} (depth {depth})")
+            }
             Self::NoJournal => write!(f, "filesystem has no journal"),
             Self::JournalCorrupt(msg) => write!(f, "journal corrupt: {msg}"),
-            Self::RecoveryFailed { ino, reason } => write!(f, "recovery failed for inode {ino}: {reason}"),
-            Self::TooShort { structure, expected, found } => {
+            Self::RecoveryFailed { ino, reason } => {
+                write!(f, "recovery failed for inode {ino}: {reason}")
+            }
+            Self::TooShort {
+                structure,
+                expected,
+                found,
+            } => {
                 write!(f, "{structure}: need {expected} bytes, got {found}")
             }
         }
@@ -231,7 +261,7 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("extent_header"), "got: {msg}");
         assert!(msg.contains("12"), "got: {msg}");
-        assert!(msg.contains("4"), "got: {msg}");
+        assert!(msg.contains('4'), "got: {msg}");
     }
 
     #[test]

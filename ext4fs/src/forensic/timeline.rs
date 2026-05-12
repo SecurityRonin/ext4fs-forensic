@@ -37,7 +37,10 @@ pub fn generate_timeline<R: Read + Seek>(
     let sb = reader.block_reader().superblock();
     if sb.mount_time != 0 {
         events.push(TimelineEvent {
-            timestamp: Timestamp { seconds: sb.mount_time as i64, nanoseconds: 0 },
+            timestamp: Timestamp {
+                seconds: i64::from(sb.mount_time),
+                nanoseconds: 0,
+            },
             event_type: EventType::Mounted,
             inode: 0,
             path: None,
@@ -50,7 +53,9 @@ pub fn generate_timeline<R: Read + Seek>(
     let all_inodes = reader.iter_all_inodes()?;
     for (ino, inode) in &all_inodes {
         let base = |ts: &Timestamp, event_type: EventType| -> Option<TimelineEvent> {
-            if ts.seconds == 0 { return None; }
+            if ts.seconds == 0 {
+                return None;
+            }
             Some(TimelineEvent {
                 timestamp: *ts,
                 event_type,
@@ -62,13 +67,24 @@ pub fn generate_timeline<R: Read + Seek>(
             })
         };
 
-        if let Some(e) = base(&inode.crtime, EventType::Created) { events.push(e); }
-        if let Some(e) = base(&inode.mtime, EventType::Modified) { events.push(e); }
-        if let Some(e) = base(&inode.atime, EventType::Accessed) { events.push(e); }
-        if let Some(e) = base(&inode.ctime, EventType::Changed) { events.push(e); }
+        if let Some(e) = base(&inode.crtime, EventType::Created) {
+            events.push(e);
+        }
+        if let Some(e) = base(&inode.mtime, EventType::Modified) {
+            events.push(e);
+        }
+        if let Some(e) = base(&inode.atime, EventType::Accessed) {
+            events.push(e);
+        }
+        if let Some(e) = base(&inode.ctime, EventType::Changed) {
+            events.push(e);
+        }
         if inode.dtime != 0 {
             events.push(TimelineEvent {
-                timestamp: Timestamp { seconds: inode.dtime as i64, nanoseconds: 0 },
+                timestamp: Timestamp {
+                    seconds: i64::from(inode.dtime),
+                    nanoseconds: 0,
+                },
                 event_type: EventType::Deleted,
                 inode: *ino,
                 path: None,
@@ -99,9 +115,9 @@ mod tests {
 
     #[test]
     fn generate_timeline_from_minimal() {
-        let mut reader = match open_minimal() {
-            Some(r) => r,
-            None => { eprintln!("skip: minimal.img not found"); return; }
+        let mut reader = if let Some(r) = open_minimal() { r } else {
+            eprintln!("skip: minimal.img not found");
+            return;
         };
         let events = generate_timeline(&mut reader).unwrap();
         assert!(!events.is_empty());
@@ -119,9 +135,9 @@ mod tests {
 
     #[test]
     fn forensic_timeline_contains_deletion_events() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let events = generate_timeline(&mut reader).unwrap();
         let deleted: Vec<&TimelineEvent> = events
@@ -130,15 +146,21 @@ mod tests {
             .collect();
         assert!(!deleted.is_empty(), "expected at least one Deleted event");
         let deleted_inodes: Vec<u64> = deleted.iter().map(|e| e.inode).collect();
-        assert!(deleted_inodes.contains(&21), "expected Deleted event for inode 21");
-        assert!(deleted_inodes.contains(&22), "expected Deleted event for inode 22");
+        assert!(
+            deleted_inodes.contains(&21),
+            "expected Deleted event for inode 21"
+        );
+        assert!(
+            deleted_inodes.contains(&22),
+            "expected Deleted event for inode 22"
+        );
     }
 
     #[test]
     fn forensic_timeline_contains_all_event_types() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let events = generate_timeline(&mut reader).unwrap();
         let has = |et: EventType| events.iter().any(|e| e.event_type == et);
@@ -151,9 +173,9 @@ mod tests {
 
     #[test]
     fn forensic_timeline_is_sorted() {
-        let mut reader = match open_forensic() {
-            Some(r) => r,
-            None => { eprintln!("skip: forensic.img not found"); return; }
+        let mut reader = if let Some(r) = open_forensic() { r } else {
+            eprintln!("skip: forensic.img not found");
+            return;
         };
         let events = generate_timeline(&mut reader).unwrap();
         assert!(events.len() > 1, "need multiple events to verify sorting");
