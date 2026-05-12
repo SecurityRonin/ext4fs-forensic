@@ -3,6 +3,7 @@
 pub mod carving;
 pub mod deleted;
 pub mod dir_recovery;
+#[cfg(feature = "hashing")]
 pub mod hash;
 pub mod history;
 pub mod journal;
@@ -16,6 +17,7 @@ pub mod xattr;
 pub use carving::*;
 pub use deleted::*;
 pub use dir_recovery::RecoveredDirEntry;
+#[cfg(feature = "hashing")]
 pub use hash::FileHash;
 pub use history::InodeVersion as HistoryVersion;
 pub use journal::*;

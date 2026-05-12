@@ -7,12 +7,13 @@ description = "Forensic-grade ext4 filesystem parser"
 license = "MIT"
 
 [features]
-default = []
+default = ["hashing"]
 ewf = ["dep:ewf"]
+hashing = ["dep:blazehash"]
 
 [dependencies]
 bitflags = "2"
-blazehash = { version = "0.2", default-features = false }
+blazehash = { version = "0.2", default-features = false, optional = true }
 crc = "3"
 
 [dependencies.ewf]

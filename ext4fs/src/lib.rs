@@ -201,11 +201,13 @@ impl<R: Read + Seek> Ext4Fs<R> {
     }
 
     /// Compute BLAKE3, SHA-256, MD5, and SHA-1 hashes for a file by inode number.
+    #[cfg(feature = "hashing")]
     pub fn hash_file(&mut self, ino: u64) -> Result<forensic::FileHash> {
         forensic::hash::hash_file(self.dir_reader.inode_reader_mut(), ino)
     }
 
     /// Hash all allocated regular files on the filesystem.
+    #[cfg(feature = "hashing")]
     pub fn hash_all_files(&mut self) -> Result<Vec<forensic::FileHash>> {
         forensic::hash::hash_all_files(self.dir_reader.inode_reader_mut())
     }
