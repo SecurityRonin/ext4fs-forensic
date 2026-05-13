@@ -29,10 +29,26 @@ impl<R: Read + Seek> BlockReader<R> {
         let gdt_offset = gdt_block * u64::from(superblock.block_size);
         let group_count = superblock.group_count();
         let desc_size = superblock.desc_size as usize;
-        let gdt_size = group_count as usize * desc_size;
+
+        // Guard against crafted images with huge group_count causing OOM before
+        // read_exact can return an EOF error.
+        let source_size = source.seek(SeekFrom::End(0))?;
+        let available = source_size.saturating_sub(gdt_offset);
+        let gdt_size = (group_count as u64)
+            .saturating_mul(desc_size as u64)
+            .min(available);
+        if (group_count as u64).saturating_mul(desc_size as u64) > available {
+            return Err(Ext4Error::CorruptMetadata {
+                structure: "GroupDescriptorTable",
+                detail: format!(
+                    "GDT requires {} bytes but only {available} available",
+                    (group_count as u64).saturating_mul(desc_size as u64)
+                ),
+            });
+        }
 
         source.seek(SeekFrom::Start(gdt_offset))?;
-        let mut gdt_buf = vec![0u8; gdt_size];
+        let mut gdt_buf = vec![0u8; gdt_size as usize];
         source.read_exact(&mut gdt_buf)?;
 
         let mut group_descs = Vec::with_capacity(group_count as usize);
