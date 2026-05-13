@@ -166,7 +166,12 @@ impl Superblock {
         let inode_size = if rev_level >= 1 { le16(buf, 0x58) } else { 128 };
 
         let log_block_size = le32(buf, 0x18);
-        let block_size = 1u32 << (10 + log_block_size);
+        let shift = 10u32.checked_add(log_block_size).filter(|&s| s < 32).ok_or_else(|| {
+            Ext4Error::InvalidSuperblock(format!(
+                "log_block_size {log_block_size} out of range (max 21)"
+            ))
+        })?;
+        let block_size = 1u32 << shift;
 
         let feature_incompat_raw = if buf.len() > 0x64 { le32(buf, 0x60) } else { 0 };
         let feature_incompat = IncompatFeatures::from_bits_truncate(feature_incompat_raw);
