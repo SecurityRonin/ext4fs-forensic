@@ -219,11 +219,16 @@ impl Superblock {
             last_mounted.copy_from_slice(&buf[0x88..0xC8]);
         }
 
-        let desc_size = if buf.len() > 0x100 {
-            le16(buf, 0xFE)
-        } else {
-            32
+        // s_desc_size == 0 means default (32); values 1–31 are invalid.
+        let desc_size = {
+            let raw = if buf.len() > 0x100 { le16(buf, 0xFE) } else { 0 };
+            if raw == 0 { 32u16 } else { raw }
         };
+        if desc_size < 32 {
+            return Err(Ext4Error::InvalidSuperblock(format!(
+                "desc_size {desc_size} out of range (must be 0 or >= 32)"
+            )));
+        }
 
         let journal_inum = if buf.len() > 0xE4 { le32(buf, 0xE0) } else { 0 };
         let last_orphan = if buf.len() > 0xEC { le32(buf, 0xE8) } else { 0 };
