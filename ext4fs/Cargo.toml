@@ -1,10 +1,10 @@
 [package]
 name = "ext4fs"
-version = "0.1.0"
-edition = "2021"
-rust-version = "1.85"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 description = "Forensic-grade ext4 filesystem parser"
-license = "MIT"
+license.workspace = true
 
 [features]
 default = ["hashing"]
@@ -12,14 +12,10 @@ ewf = ["dep:ewf"]
 hashing = ["dep:blazehash"]
 
 [dependencies]
-bitflags = "2"
-blazehash = { version = "0.2", default-features = false, optional = true }
-crc = "3"
-
-[dependencies.ewf]
-version = "0.2"
-path = "../../ewf/ewf"
-optional = true
+bitflags = { workspace = true }
+blazehash = { workspace = true, optional = true }
+crc = { workspace = true }
+ewf = { workspace = true, optional = true }
 
 [lints]
 workspace = true

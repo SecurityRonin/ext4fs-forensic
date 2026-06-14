@@ -2,6 +2,29 @@
 members = ["ext4fs", "ext4fs-fuse", "ext4fs-cli"]
 resolver = "2"
 
+# Single source of truth for fields shared by every member (DRY): bump version /
+# MSRV / license here once; members inherit via `field.workspace = true`.
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+
+# Single source of truth for dependency versions (DRY): declare each once;
+# members write `dep.workspace = true`. The inter-crate `ext4fs` version lives
+# here too, so a bump touches one line instead of every dependent.
+[workspace.dependencies]
+ext4fs = { path = "ext4fs", version = "0.1.0" }
+bitflags = "2"
+blazehash = { version = "0.2", default-features = false }
+crc = "3"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+ewf = { version = "0.2", path = "../ewf/ewf" }
+forensic-mount = { path = "../4n6mount" }
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 
