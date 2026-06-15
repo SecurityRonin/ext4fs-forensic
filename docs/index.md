@@ -4,11 +4,14 @@
 
 Parse ext4 images with full forensic metadata — all five timestamps with nanosecond precision, deleted file recovery, journal history reconstruction, slack space analysis, and byte-level block search.
 
-## Why this exists
+`ext4fs-forensic` parses ext4 on-disk structures from first principles — no C bindings, no `unsafe` code (`#![forbid(unsafe_code)]`) — making it easy to embed in modern forensic toolchains, commercial products, and court-admissible workflows.
 
-This project stands on the shoulders of giants. The Sleuth Kit, libext2fs, and the Linux kernel's ext4 implementation pioneered the forensic analysis of ext4 filesystems and taught the community everything we know about on-disk structures. Without their decades of work, documentation, and open source contributions, this crate could not exist.
+## Install
 
-ext4fs-forensic brings those same forensic capabilities to the Rust ecosystem as a **pure safe Rust library** (`#![forbid(unsafe_code)]`). It parses ext4 on-disk structures from first principles — no C bindings, no unsafe code, MIT licensed — making it easy to embed in modern forensic toolchains, commercial products, and court-admissible workflows.
+```toml
+[dependencies]
+ext4fs = "0.1"
+```
 
 ## What you get
 
@@ -29,7 +32,7 @@ let history = fs.inode_history(ino)?;             // Metadata over time
 let slack = fs.slack_space(ino)?;                 // File slack analysis
 let hits = fs.search_blocks(b"password", All)?;   // Keyword search
 let hashes = fs.hash_file(ino)?;                  // BLAKE3+SHA-256+MD5+SHA-1
-let xattrs = fs.xattrs(ino)?;                    // Extended attributes
+let xattrs = fs.xattrs(ino)?;                     // Extended attributes
 let dirs = fs.recover_dir_entries(2)?;            // Deleted filename recovery
 let backups = fs.verify_superblock_backups()?;    // Tampering detection
 ```
@@ -67,26 +70,12 @@ Six-layer bottom-up design — each layer builds on the one below:
 
 Accepts **any `Read + Seek` source** — raw image files, EWF/E01 images (via the [ewf](https://crates.io/crates/ewf) crate), or custom readers.
 
-## Install
-
-```toml
-[dependencies]
-ext4fs = "0.1"
-```
-
-## Test coverage
-
-- **220 tests** across unit and integration suites
-- **98.85% function coverage**, 87.86% line coverage
-- Validated against real forensic images with known deleted files, xattrs, symlinks, and journal transactions
-
 ## Design decisions that matter for forensics
 
 - **`#![forbid(unsafe_code)]`** — pure safe Rust, no undefined behavior, no buffer overflows
 - **Checksum mismatches are warnings, not errors** — forensic tools must handle damaged filesystems
 - **ext4 is little-endian, jbd2 journal is big-endian** — both handled correctly
 - **No chrono dependency** — timestamps as raw `(i64 seconds, u32 nanoseconds)` tuples, no timezone assumptions
-- **MIT licensed** — use it in commercial tools, government systems, or court-submitted reports without GPL concerns
 
 ## Works with
 
@@ -94,15 +83,6 @@ ext4fs = "0.1"
 - [**blazehash**](https://crates.io/crates/blazehash) — Forensic file hashing (BLAKE3, SHA-256, MD5, SHA-1)
 - [**4n6mount**](https://github.com/SecurityRonin/4n6mount) — FUSE mount with ro/rw views, deleted file browsing, and evidence filtering
 
-## Acknowledgments
-
-This project would not exist without the foundational work of those who built the forensic analysis discipline and its tools:
-
-- **Brian Carrier** — for [The Sleuth Kit](https://www.sleuthkit.org/), [Autopsy Forensic Browser](https://www.autopsy.com/), and *File System Forensic Analysis*, which taught a generation of practitioners (including this author) how modern filesystems work at the byte level
-- **Rob T. Lee** — for [SANS FOR508](https://www.sans.org/cyber-security-courses/advanced-incident-response-threat-hunting-training/) (Advanced Incident Response, Threat Hunting, and Digital Forensics), which shaped how I think about forensic timelines, evidence handling, and incident response
-- **The Linux kernel ext4 developers** — for meticulous documentation of on-disk structures at [kernel.org](https://www.kernel.org/doc/html/latest/filesystems/ext4/)
-- **Theodore Ts'o and the e2fsprogs team** — for debugfs, dumpe2fs, and decades of ext4 tooling that served as our validation reference
-
 ---
 
-[Privacy Policy](https://securityronin.github.io/ext4fs-forensic/privacy/) · [Terms of Service](https://securityronin.github.io/ext4fs-forensic/terms/) · © 2026 Security Ronin Ltd
+[Privacy Policy](privacy.md) · [Terms of Service](terms.md) · © 2026 Security Ronin Ltd
