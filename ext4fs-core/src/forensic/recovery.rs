@@ -382,7 +382,7 @@ mod tests {
         let iblock_off = off + 0x28;
         let leaf_off = iblock_off + 12;
         // Set physical_lo to a huge value (well beyond image)
-        let huge_block: u32 = 0x00FFFFFF;
+        let huge_block: u32 = 0x00FF_FFFF;
         data[leaf_off + 8] = (huge_block & 0xFF) as u8;
         data[leaf_off + 9] = ((huge_block >> 8) & 0xFF) as u8;
         data[leaf_off + 10] = ((huge_block >> 16) & 0xFF) as u8;

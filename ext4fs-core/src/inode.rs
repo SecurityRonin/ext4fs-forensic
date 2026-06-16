@@ -493,9 +493,8 @@ impl<R: Read + Seek> InodeReader<R> {
             if mode == 0 && dtime == 0 {
                 continue;
             }
-            match Inode::parse(slice, stored_inode_size) {
-                Ok(inode) => result.push((first_ino + i as u64, inode)),
-                Err(_) => continue,
+            if let Ok(inode) = Inode::parse(slice, stored_inode_size) {
+                result.push((first_ino + i as u64, inode));
             }
         }
         Ok(result)

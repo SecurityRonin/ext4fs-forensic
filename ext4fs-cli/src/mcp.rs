@@ -538,7 +538,7 @@ mod tests {
     #[test]
     fn format_timestamp() {
         let ts = ext4fs::ondisk::Timestamp {
-            seconds: 1700000000,
+            seconds: 1_700_000_000,
             nanoseconds: 500,
         };
         assert_eq!(format_ts(&ts), "1700000000:500");

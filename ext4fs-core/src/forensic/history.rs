@@ -136,7 +136,7 @@ mod tests {
             return;
         };
         let journal = parse_journal(&mut reader).unwrap();
-        let versions = inode_history(&mut reader, &journal, 999999).unwrap();
+        let versions = inode_history(&mut reader, &journal, 999_999).unwrap();
         assert!(versions.is_empty());
     }
 

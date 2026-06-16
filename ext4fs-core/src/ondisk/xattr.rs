@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 use crate::error::{Ext4Error, Result};
 
-pub const XATTR_MAGIC: u32 = 0xEA020000;
+pub const XATTR_MAGIC: u32 = 0xEA02_0000;
 
 // ---------------------------------------------------------------------------
 // Little-endian read helpers
@@ -52,7 +52,7 @@ impl From<u8> for XattrNamespace {
 /// On-disk header of an external xattr block (first 32 bytes).
 ///
 /// Layout (all little-endian):
-///   0..4   magic      (must be 0xEA020000)
+///   0..4   magic      (must be 0xEA02_0000)
 ///   4..8   refcount
 ///   8..12  blocks
 ///   12..16 hash
@@ -193,7 +193,7 @@ mod tests {
     #[test]
     fn parse_xattr_header() {
         let mut buf = vec![0u8; 32];
-        buf[0..4].copy_from_slice(&0xEA020000u32.to_le_bytes());
+        buf[0..4].copy_from_slice(&0xEA02_0000u32.to_le_bytes());
         buf[4..8].copy_from_slice(&1u32.to_le_bytes()); // refcount
         buf[8..12].copy_from_slice(&1u32.to_le_bytes()); // blocks
         let hdr = XattrBlockHeader::parse(&buf).unwrap();

@@ -47,6 +47,9 @@ float_cmp = { level = "allow", priority = 1 }
 items_after_statements = { level = "allow", priority = 1 }
 # complex parsing functions legitimately exceed line limits
 too_many_lines = { level = "allow", priority = 1 }
+# `if let Some(x) = .. { x } else { skip }` skip-guards read clearly in
+# optional-fixture tests (fleet standard: ewf, vmdk-forensic, ntfs-forensic)
+manual_let_else = { level = "allow", priority = 1 }
 # doc comments intentionally use plain text for field names
 doc_markdown = { level = "allow", priority = 1 }
 # u64 as f64 used for forensic scoring ratios, precision loss is acceptable

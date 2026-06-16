@@ -166,6 +166,9 @@ impl ForensicFs for Ext4ForensicFs {
 
 // --- Type mapping helpers ---
 
+// Used as a `Result::map_err` callback, which hands the error in by value;
+// taking `&Ext4Error` would force a closure wrapper at every call site.
+#[allow(clippy::needless_pass_by_value)]
 fn map_err(e: ext4fs::error::Ext4Error) -> forensic_mount::FsError {
     forensic_mount::FsError::Other(e.to_string())
 }

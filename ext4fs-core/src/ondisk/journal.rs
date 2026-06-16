@@ -1,12 +1,12 @@
 #![forbid(unsafe_code)]
 use crate::error::{Ext4Error, Result};
 
-pub const JOURNAL_MAGIC: u32 = 0xC03B3998;
+pub const JOURNAL_MAGIC: u32 = 0xC03B_3998;
 
 // JBD2 feature incompat flags
-pub const JBD2_FEATURE_INCOMPAT_64BIT: u32 = 0x00000002;
-pub const JBD2_FEATURE_INCOMPAT_CSUM_V2: u32 = 0x00000008;
-pub const JBD2_FEATURE_INCOMPAT_CSUM_V3: u32 = 0x00000010;
+pub const JBD2_FEATURE_INCOMPAT_64BIT: u32 = 0x0000_0002;
+pub const JBD2_FEATURE_INCOMPAT_CSUM_V2: u32 = 0x0000_0008;
+pub const JBD2_FEATURE_INCOMPAT_CSUM_V3: u32 = 0x0000_0010;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -286,7 +286,7 @@ mod tests {
     #[test]
     fn parse_journal_header() {
         let mut buf = vec![0u8; 12];
-        buf[0..4].copy_from_slice(&0xC03B3998u32.to_be_bytes());
+        buf[0..4].copy_from_slice(&0xC03B_3998u32.to_be_bytes());
         buf[4..8].copy_from_slice(&1u32.to_be_bytes()); // descriptor
         buf[8..12].copy_from_slice(&42u32.to_be_bytes());
         let hdr = JournalHeader::parse(&buf).unwrap();
@@ -322,7 +322,7 @@ mod tests {
         let mut buf = vec![0u8; 16];
         buf[0..4].copy_from_slice(&500u32.to_be_bytes()); // blocknr
         buf[4..8].copy_from_slice(&0x08u32.to_be_bytes()); // flags: LAST_TAG
-        buf[12..16].copy_from_slice(&0xDEADBEEFu32.to_be_bytes());
+        buf[12..16].copy_from_slice(&0xDEAD_BEEFu32.to_be_bytes());
         let tag = JournalBlockTag::parse_v3(&buf, false);
         assert_eq!(tag.blocknr, 500);
         assert!(tag.last_tag);
@@ -332,7 +332,7 @@ mod tests {
     #[test]
     fn journal_superblock_feature_flags() {
         let mut buf = vec![0u8; 1024];
-        buf[0..4].copy_from_slice(&0xC03B3998u32.to_be_bytes());
+        buf[0..4].copy_from_slice(&0xC03B_3998u32.to_be_bytes());
         buf[4..8].copy_from_slice(&4u32.to_be_bytes()); // SuperblockV2
         buf[8..12].copy_from_slice(&1u32.to_be_bytes()); // sequence
         buf[0x0C..0x10].copy_from_slice(&1024u32.to_be_bytes()); // block_size
@@ -352,7 +352,7 @@ mod tests {
     #[test]
     fn journal_superblock_csum_v2_only() {
         let mut buf = vec![0u8; 1024];
-        buf[0..4].copy_from_slice(&0xC03B3998u32.to_be_bytes());
+        buf[0..4].copy_from_slice(&0xC03B_3998u32.to_be_bytes());
         buf[4..8].copy_from_slice(&4u32.to_be_bytes()); // SuperblockV2
         buf[8..12].copy_from_slice(&1u32.to_be_bytes());
         buf[0x0C..0x10].copy_from_slice(&1024u32.to_be_bytes());

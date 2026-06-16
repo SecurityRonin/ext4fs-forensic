@@ -607,16 +607,10 @@ mod tests {
         let br = BlockReader::open(Cursor::new(patched)).unwrap();
         let mut reader3 = InodeReader::new(br);
         let result = parse_journal(&mut reader3);
-        match result {
-            Err(Ext4Error::JournalCorrupt(msg)) => {
-                assert!(msg.contains("too small"), "expected 'too small' in: {msg}");
-            }
-            // The read_inode_data may truncate differently; any error is OK
-            Err(_) => {}
-            Ok(_) => {
-                // If it somehow still parsed (unlikely), that's also fine
-                // since the important thing is we exercised the code path
-            }
+        // read_inode_data may truncate differently or still parse — either way
+        // the truncated path was exercised; only the corrupt case asserts a msg.
+        if let Err(Ext4Error::JournalCorrupt(msg)) = result {
+            assert!(msg.contains("too small"), "expected 'too small' in: {msg}");
         }
     }
 }

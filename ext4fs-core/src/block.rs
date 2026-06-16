@@ -34,15 +34,15 @@ impl<R: Read + Seek> BlockReader<R> {
         // read_exact can return an EOF error.
         let source_size = source.seek(SeekFrom::End(0))?;
         let available = source_size.saturating_sub(gdt_offset);
-        let gdt_size = (group_count as u64)
+        let gdt_size = u64::from(group_count)
             .saturating_mul(desc_size as u64)
             .min(available);
-        if (group_count as u64).saturating_mul(desc_size as u64) > available {
+        if u64::from(group_count).saturating_mul(desc_size as u64) > available {
             return Err(Ext4Error::CorruptMetadata {
                 structure: "GroupDescriptorTable",
                 detail: format!(
                     "GDT requires {} bytes but only {available} available",
-                    (group_count as u64).saturating_mul(desc_size as u64)
+                    u64::from(group_count).saturating_mul(desc_size as u64)
                 ),
             });
         }

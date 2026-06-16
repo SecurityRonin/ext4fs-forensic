@@ -530,8 +530,8 @@ mod tests {
     #[test]
     fn inode_predicate_has_inline_data() {
         let mut buf = make_inode_bytes(0x8180, 100);
-        // Set INLINE_DATA flag (0x10000000)
-        let flags = 0x10000000u32;
+        // Set INLINE_DATA flag (0x1000_0000)
+        let flags = 0x1000_0000u32;
         buf[0x20..0x24].copy_from_slice(&flags.to_le_bytes());
         let inode = Inode::parse(&buf, 256).unwrap();
         assert!(inode.has_inline_data());

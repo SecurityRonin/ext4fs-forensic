@@ -183,8 +183,8 @@ mod tests {
     fn display_checksum_mismatch() {
         let err = Ext4Error::ChecksumMismatch {
             structure: "inode",
-            expected: 0xDEADBEEF,
-            computed: 0xCAFEBABE,
+            expected: 0xDEAD_BEEF,
+            computed: 0xCAFE_BABE,
         };
         let msg = err.to_string();
         assert!(msg.contains("inode"), "got: {msg}");

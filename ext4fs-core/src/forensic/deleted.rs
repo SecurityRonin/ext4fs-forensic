@@ -43,7 +43,7 @@ pub fn find_deleted_inodes<R: Read + Seek>(
             continue;
         }
 
-        let recoverability = estimate_recoverability(reader, *ino, inode)?;
+        let recoverability = estimate_recoverability(reader, *ino, inode);
 
         deleted.push(DeletedInode {
             ino: *ino,
@@ -80,7 +80,7 @@ pub fn find_orphan_inodes<R: Read + Seek>(
             continue;
         }
 
-        let recoverability = estimate_recoverability(reader, *ino, inode)?;
+        let recoverability = estimate_recoverability(reader, *ino, inode);
 
         orphans.push(DeletedInode {
             ino: *ino,
@@ -110,9 +110,9 @@ fn estimate_recoverability<R: Read + Seek>(
     reader: &mut InodeReader<R>,
     ino: u64,
     inode: &Inode,
-) -> Result<f64> {
+) -> f64 {
     if inode.size == 0 {
-        return Ok(0.0);
+        return 0.0;
     }
 
     // Try to get block mappings. If extent root is zeroed (common for
@@ -120,16 +120,16 @@ fn estimate_recoverability<R: Read + Seek>(
     // and recoverability is 0.
     let mappings = match reader.inode_block_map(ino) {
         Ok(m) => m,
-        Err(_) => return Ok(0.0),
+        Err(_) => return 0.0,
     };
 
     if mappings.is_empty() {
-        return Ok(0.0);
+        return 0.0;
     }
 
     let total_blocks: u64 = mappings.iter().map(|m| m.length).sum();
     if total_blocks == 0 {
-        return Ok(0.0);
+        return 0.0;
     }
 
     let mut free_blocks = 0u64;
@@ -142,7 +142,7 @@ fn estimate_recoverability<R: Read + Seek>(
         }
     }
 
-    Ok(free_blocks as f64 / total_blocks as f64)
+    free_blocks as f64 / total_blocks as f64
 }
 
 #[cfg(test)]
