@@ -201,9 +201,9 @@ mod tests {
         buf[0x28] = 3; // bg_inode_table_hi
 
         let gd = GroupDescriptor::parse(&buf, 64).unwrap();
-        assert_eq!(gd.block_bitmap, (1u64 << 32) | 100);
-        assert_eq!(gd.inode_bitmap, (2u64 << 32) | 101);
-        assert_eq!(gd.inode_table, (3u64 << 32) | 102);
+        assert_eq!(gd.block_bitmap, (1u64 << 32) | 0x64);
+        assert_eq!(gd.inode_bitmap, (2u64 << 32) | 0x65);
+        assert_eq!(gd.inode_table, (3u64 << 32) | 0x66);
     }
 
     #[test]

@@ -190,6 +190,6 @@ mod tests {
         buf[8] = 1; // ei_leaf_hi = 1
         let idx = ExtentIndex::parse(&buf);
         assert_eq!(idx.logical_block, 1000);
-        assert_eq!(idx.child_block, (1u64 << 32) | 2000);
+        assert_eq!(idx.child_block, (1u64 << 32) | 0x7D0);
     }
 }
