@@ -1,10 +1,16 @@
 [package]
-name = "ext4fs"
+name = "ext4fs-core"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 description = "Forensic-grade ext4 filesystem parser"
 license.workspace = true
+
+# Bare `ext4fs` is taken on crates.io (yybit). Publish as ext4fs-core but keep
+# the import path `use ext4fs` via the fleet co-existence pattern (cf. vmdk-core).
+[lib]
+name = "ext4fs"
+path = "src/lib.rs"
 
 [features]
 default = ["hashing"]

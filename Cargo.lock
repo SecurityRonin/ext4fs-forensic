@@ -342,7 +342,7 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "ewf"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "flate2",
  "glob",
@@ -354,7 +354,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "ext4fs"
+name = "ext4fs-cli"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "ext4fs-core",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "ext4fs-core"
 version = "0.1.0"
 dependencies = [
  "bitflags",
@@ -364,22 +375,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "ext4fs-cli"
-version = "0.1.0"
-dependencies = [
- "clap",
- "ext4fs",
- "serde",
- "serde_json",
- "uuid",
-]
-
-[[package]]
 name = "ext4fs-fuse"
 version = "0.1.0"
 dependencies = [
  "clap",
- "ext4fs",
+ "ext4fs-core",
  "forensic-mount",
  "serde_json",
 ]
@@ -424,15 +424,23 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "ewf",
- "ext4fs",
+ "ext4fs-core",
  "fuser",
+ "iso9660-forensic",
  "libc",
  "md-5",
  "rusqlite",
  "serde",
  "serde_json",
  "sha2",
+ "vmdk-core",
 ]
+
+[[package]]
+name = "forensicnomicon"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4f25dba7d97bb3fd95ecc37506cfb4c1d8ea43de0a4206d4de0bbc6b28dc6a4"
 
 [[package]]
 name = "fuser"
@@ -549,6 +557,16 @@ name = "is_terminal_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
+
+[[package]]
+name = "iso9660-forensic"
+version = "0.6.0"
+dependencies = [
+ "forensicnomicon",
+ "sha1",
+ "sha2",
+ "thiserror",
+]
 
 [[package]]
 name = "itoa"
@@ -973,6 +991,16 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "vmdk-core"
+version = "0.7.0"
+dependencies = [
+ "flate2",
+ "md-5",
+ "sha2",
+ "thiserror",
+]
 
 [[package]]
 name = "walkdir"
