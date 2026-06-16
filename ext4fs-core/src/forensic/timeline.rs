@@ -95,7 +95,7 @@ pub fn generate_timeline<R: Read + Seek>(
         }
     }
 
-    events.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+    events.sort_by_key(|e| e.timestamp);
     Ok(events)
 }
 
