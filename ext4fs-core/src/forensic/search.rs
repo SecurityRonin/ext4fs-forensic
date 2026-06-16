@@ -105,7 +105,9 @@ mod tests {
 
     #[test]
     fn search_hello_in_allocated() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };
@@ -118,7 +120,9 @@ mod tests {
 
     #[test]
     fn search_nonexistent_pattern() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };
@@ -134,7 +138,9 @@ mod tests {
 
     #[test]
     fn search_empty_pattern_returns_empty() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };
@@ -144,7 +150,9 @@ mod tests {
 
     #[test]
     fn search_ext4_magic_in_all() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };
@@ -158,7 +166,9 @@ mod tests {
 
     #[test]
     fn search_unallocated_scope() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };
@@ -171,7 +181,9 @@ mod tests {
 
     #[test]
     fn search_hit_has_valid_context() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };

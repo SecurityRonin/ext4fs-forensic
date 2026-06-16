@@ -294,7 +294,9 @@ fn handle_tool(
                 .and_then(|e| e.as_str())
                 .unwrap_or("text");
             let data = fs.read_file(path).map_err(|e| e.to_string())?;
-            if encoding == "base64" { Ok(mcp_text(&base64_encode(&data))) } else {
+            if encoding == "base64" {
+                Ok(mcp_text(&base64_encode(&data)))
+            } else {
                 let text = String::from_utf8_lossy(&data);
                 Ok(mcp_text(&text))
             }
@@ -471,8 +473,16 @@ fn base64_encode(data: &[u8]) -> String {
     let mut result = String::new();
     for chunk in data.chunks(3) {
         let b0 = u32::from(chunk[0]);
-        let b1 = if chunk.len() > 1 { u32::from(chunk[1]) } else { 0 };
-        let b2 = if chunk.len() > 2 { u32::from(chunk[2]) } else { 0 };
+        let b1 = if chunk.len() > 1 {
+            u32::from(chunk[1])
+        } else {
+            0
+        };
+        let b2 = if chunk.len() > 2 {
+            u32::from(chunk[2])
+        } else {
+            0
+        };
         let triple = (b0 << 16) | (b1 << 8) | b2;
         result.push(CHARS[((triple >> 18) & 0x3F) as usize] as char);
         result.push(CHARS[((triple >> 12) & 0x3F) as usize] as char);

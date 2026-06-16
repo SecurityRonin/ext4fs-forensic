@@ -95,7 +95,9 @@ mod tests {
 
     #[test]
     fn inode_history_for_hello_txt() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };
@@ -112,7 +114,9 @@ mod tests {
 
     #[test]
     fn inode_history_for_deleted_file() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };
@@ -125,7 +129,9 @@ mod tests {
 
     #[test]
     fn inode_history_nonexistent() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };
@@ -136,7 +142,9 @@ mod tests {
 
     #[test]
     fn inode_history_sorted_by_sequence() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };

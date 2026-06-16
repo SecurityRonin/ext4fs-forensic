@@ -66,7 +66,9 @@ mod tests {
 
     #[test]
     fn hash_file_correct_lengths() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };
@@ -79,7 +81,9 @@ mod tests {
 
     #[test]
     fn hash_file_deterministic() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };
@@ -93,7 +97,9 @@ mod tests {
 
     #[test]
     fn hash_file_known_content() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };
@@ -108,7 +114,9 @@ mod tests {
 
     #[test]
     fn hash_all_files_returns_multiple() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };

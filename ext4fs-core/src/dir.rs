@@ -201,7 +201,10 @@ mod tests {
     fn read_root_directory() {
         let mut r = open_minimal();
         let entries = r.read_dir(2).unwrap();
-        let names: Vec<String> = entries.iter().map(super::super::ondisk::dir_entry::DirEntry::name_str).collect();
+        let names: Vec<String> = entries
+            .iter()
+            .map(super::super::ondisk::dir_entry::DirEntry::name_str)
+            .collect();
         assert!(names.contains(&".".to_string()));
         assert!(names.contains(&"..".to_string()));
         assert!(names.contains(&"hello.txt".to_string()));
@@ -277,7 +280,9 @@ mod tests {
 
     #[test]
     fn resolve_absolute_symlink() {
-        let mut r = if let Some(r) = open_forensic() { r } else {
+        let mut r = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -292,7 +297,9 @@ mod tests {
 
     #[test]
     fn resolve_relative_symlink() {
-        let mut r = if let Some(r) = open_forensic() { r } else {
+        let mut r = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -305,7 +312,9 @@ mod tests {
 
     #[test]
     fn resolve_deep_symlink() {
-        let mut r = if let Some(r) = open_forensic() { r } else {
+        let mut r = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -318,7 +327,9 @@ mod tests {
 
     #[test]
     fn resolve_updir_symlink() {
-        let mut r = if let Some(r) = open_forensic() { r } else {
+        let mut r = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -331,7 +342,9 @@ mod tests {
 
     #[test]
     fn read_link_inline() {
-        let mut r = if let Some(r) = open_forensic() { r } else {
+        let mut r = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -343,7 +356,9 @@ mod tests {
 
     #[test]
     fn read_link_not_a_symlink() {
-        let mut r = if let Some(r) = open_forensic() { r } else {
+        let mut r = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -354,7 +369,9 @@ mod tests {
 
     #[test]
     fn resolve_nonexistent_through_symlink() {
-        let mut r = if let Some(r) = open_forensic() { r } else {
+        let mut r = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -367,7 +384,9 @@ mod tests {
 
     #[test]
     fn lookup_returns_none_for_missing_forensic() {
-        let mut r = if let Some(r) = open_forensic() { r } else {
+        let mut r = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -377,7 +396,9 @@ mod tests {
 
     #[test]
     fn read_dir_handles_all_directory_types() {
-        let mut r = if let Some(r) = open_forensic() { r } else {
+        let mut r = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -386,7 +407,10 @@ mod tests {
         for (ino, inode) in &all_inodes {
             if inode.file_type() == FileType::Directory && inode.mode != 0 {
                 let entries = r.read_dir(*ino).unwrap();
-                let names: Vec<String> = entries.iter().map(super::super::ondisk::dir_entry::DirEntry::name_str).collect();
+                let names: Vec<String> = entries
+                    .iter()
+                    .map(super::super::ondisk::dir_entry::DirEntry::name_str)
+                    .collect();
                 assert!(
                     names.contains(&".".to_string()),
                     "dir ino {ino} missing '.'"

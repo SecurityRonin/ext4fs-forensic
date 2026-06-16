@@ -161,7 +161,9 @@ mod tests {
 
     #[test]
     fn no_deleted_inodes_in_fresh_image() {
-        let mut reader = if let Some(r) = open_minimal() { r } else {
+        let mut reader = if let Some(r) = open_minimal() {
+            r
+        } else {
             eprintln!("skip: minimal.img not found");
             return;
         };
@@ -194,7 +196,9 @@ mod tests {
 
     #[test]
     fn forensic_image_has_deleted_inodes() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -217,7 +221,9 @@ mod tests {
 
     #[test]
     fn deleted_inode_has_nonzero_dtime() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -230,7 +236,9 @@ mod tests {
 
     #[test]
     fn deleted_inode_recoverability_is_valid() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -248,7 +256,9 @@ mod tests {
 
     #[test]
     fn deleted_inode_21_is_regular_file() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -267,7 +277,9 @@ mod tests {
 
     #[test]
     fn find_orphan_inodes_on_forensic_img() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };

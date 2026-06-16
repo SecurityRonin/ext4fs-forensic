@@ -174,7 +174,9 @@ mod tests {
     /// the `expected_size == 0` early-return path.
     #[test]
     fn recover_deleted_inode_21_hits_zero_size_path() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -189,7 +191,9 @@ mod tests {
     /// Deleted inode 22 also has zeroed size.
     #[test]
     fn recover_deleted_inode_22_hits_zero_size_path() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -202,7 +206,9 @@ mod tests {
     /// Exercises the main recovery loop with allocated blocks (overwritten path).
     #[test]
     fn recover_live_file_exercises_main_loop() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -221,7 +227,9 @@ mod tests {
     /// triggering the `inode_block_map` Err → RecoveryFailed path (lines 49-54).
     #[test]
     fn recover_zeroed_extent_tree_error() {
-        let reader_orig = if let Some(r) = open_forensic() { r } else {
+        let reader_orig = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -259,7 +267,9 @@ mod tests {
     /// triggering the `mappings.is_empty()` → RecoveryFailed path (lines 57-61).
     #[test]
     fn recover_empty_mappings_error() {
-        let reader_orig = if let Some(r) = open_forensic() { r } else {
+        let reader_orig = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -299,7 +309,9 @@ mod tests {
     /// exercising the unallocated-block read path (lines 83-89).
     #[test]
     fn recover_with_unallocated_blocks() {
-        let reader_orig = if let Some(r) = open_forensic() { r } else {
+        let reader_orig = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -347,7 +359,9 @@ mod tests {
     /// fails, exercising the read error path (lines 90-95).
     #[test]
     fn recover_with_read_block_error() {
-        let reader_orig = if let Some(r) = open_forensic() { r } else {
+        let reader_orig = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -432,7 +446,9 @@ mod tests {
 
     #[test]
     fn recover_inode_out_of_range() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };

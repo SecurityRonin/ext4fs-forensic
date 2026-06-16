@@ -122,7 +122,9 @@ mod tests {
 
     #[test]
     fn find_unallocated_blocks() {
-        let mut reader = if let Some(r) = open_minimal() { r } else {
+        let mut reader = if let Some(r) = open_minimal() {
+            r
+        } else {
             eprintln!("skip: minimal.img not found");
             return;
         };
@@ -142,7 +144,9 @@ mod tests {
 
     #[test]
     fn forensic_image_has_unallocated_blocks() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -157,7 +161,9 @@ mod tests {
 
     #[test]
     fn read_unallocated_returns_data() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -175,7 +181,9 @@ mod tests {
 
     #[test]
     fn find_extent_signatures_runs_without_error() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };

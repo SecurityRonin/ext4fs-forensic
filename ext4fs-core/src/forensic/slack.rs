@@ -108,7 +108,9 @@ mod tests {
 
     #[test]
     fn slack_space_for_small_file() {
-        let mut reader = if let Some(r) = open_minimal() { r } else {
+        let mut reader = if let Some(r) = open_minimal() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };
@@ -134,7 +136,9 @@ mod tests {
 
     #[test]
     fn no_slack_for_zero_size_file() {
-        let mut reader = if let Some(r) = open_minimal() { r } else {
+        let mut reader = if let Some(r) = open_minimal() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };
@@ -145,7 +149,9 @@ mod tests {
 
     #[test]
     fn scan_all_slack_finds_entries() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };

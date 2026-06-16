@@ -132,7 +132,9 @@ mod tests {
 
     #[test]
     fn recover_deleted_entries_in_forensic_root() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };
@@ -147,7 +149,9 @@ mod tests {
 
     #[test]
     fn no_deleted_entries_in_clean_dir() {
-        let mut reader = if let Some(r) = open_minimal() { r } else {
+        let mut reader = if let Some(r) = open_minimal() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };
@@ -159,7 +163,9 @@ mod tests {
 
     #[test]
     fn recover_all_returns_without_error() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };

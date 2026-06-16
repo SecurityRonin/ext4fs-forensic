@@ -349,7 +349,9 @@ mod tests {
 
     #[test]
     fn root_ino_is_2() {
-        let fs = if let Some(f) = open_forensic_fs() { f } else {
+        let fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };
@@ -358,12 +360,17 @@ mod tests {
 
     #[test]
     fn read_dir_root() {
-        let mut fs = if let Some(f) = open_forensic_fs() { f } else {
+        let mut fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };
         let entries = fs.read_dir(2).unwrap();
-        let names: Vec<String> = entries.iter().map(forensic_mount::FsDirEntry::name_str).collect();
+        let names: Vec<String> = entries
+            .iter()
+            .map(forensic_mount::FsDirEntry::name_str)
+            .collect();
         assert!(names.contains(&"hello.txt".to_string()));
         assert!(names.contains(&".".to_string()));
         assert!(names.contains(&"..".to_string()));
@@ -371,7 +378,9 @@ mod tests {
 
     #[test]
     fn lookup_hello_txt() {
-        let mut fs = if let Some(f) = open_forensic_fs() { f } else {
+        let mut fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };
@@ -382,7 +391,9 @@ mod tests {
 
     #[test]
     fn lookup_nonexistent() {
-        let mut fs = if let Some(f) = open_forensic_fs() { f } else {
+        let mut fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };
@@ -392,7 +403,9 @@ mod tests {
 
     #[test]
     fn metadata_root() {
-        let mut fs = if let Some(f) = open_forensic_fs() { f } else {
+        let mut fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };
@@ -405,7 +418,9 @@ mod tests {
 
     #[test]
     fn metadata_hello_txt() {
-        let mut fs = if let Some(f) = open_forensic_fs() { f } else {
+        let mut fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };
@@ -417,7 +432,9 @@ mod tests {
 
     #[test]
     fn read_file_hello_txt() {
-        let mut fs = if let Some(f) = open_forensic_fs() { f } else {
+        let mut fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };
@@ -429,7 +446,9 @@ mod tests {
 
     #[test]
     fn read_file_range_hello_txt() {
-        let mut fs = if let Some(f) = open_forensic_fs() { f } else {
+        let mut fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };
@@ -440,7 +459,9 @@ mod tests {
 
     #[test]
     fn read_link_abs_link() {
-        let mut fs = if let Some(f) = open_forensic_fs() { f } else {
+        let mut fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };
@@ -451,7 +472,9 @@ mod tests {
 
     #[test]
     fn deleted_inodes_returns_entries() {
-        let mut fs = if let Some(f) = open_forensic_fs() { f } else {
+        let mut fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };
@@ -464,7 +487,9 @@ mod tests {
 
     #[test]
     fn recover_file_deleted() {
-        let mut fs = if let Some(f) = open_forensic_fs() { f } else {
+        let mut fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };
@@ -474,7 +499,9 @@ mod tests {
 
     #[test]
     fn timeline_has_events() {
-        let mut fs = if let Some(f) = open_forensic_fs() { f } else {
+        let mut fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };
@@ -488,7 +515,9 @@ mod tests {
 
     #[test]
     fn unallocated_blocks_returns_ranges() {
-        let mut fs = if let Some(f) = open_forensic_fs() { f } else {
+        let mut fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };
@@ -498,7 +527,9 @@ mod tests {
 
     #[test]
     fn read_unallocated_returns_data() {
-        let mut fs = if let Some(f) = open_forensic_fs() { f } else {
+        let mut fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };
@@ -509,7 +540,9 @@ mod tests {
 
     #[test]
     fn journal_transactions_returns_entries() {
-        let mut fs = if let Some(f) = open_forensic_fs() { f } else {
+        let mut fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };
@@ -522,7 +555,9 @@ mod tests {
 
     #[test]
     fn fs_info_returns_json() {
-        let fs = if let Some(f) = open_forensic_fs() { f } else {
+        let fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };
@@ -533,7 +568,9 @@ mod tests {
 
     #[test]
     fn block_size_is_4096() {
-        let fs = if let Some(f) = open_forensic_fs() { f } else {
+        let fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };
@@ -542,7 +579,9 @@ mod tests {
 
     #[test]
     fn dir_entries_have_correct_file_types() {
-        let mut fs = if let Some(f) = open_forensic_fs() { f } else {
+        let mut fs = if let Some(f) = open_forensic_fs() {
+            f
+        } else {
             eprintln!("skip");
             return;
         };

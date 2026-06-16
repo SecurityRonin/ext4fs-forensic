@@ -118,7 +118,9 @@ mod tests {
 
     #[test]
     fn read_xattrs_from_file() {
-        let mut reader = if let Some(r) = open_minimal() { r } else {
+        let mut reader = if let Some(r) = open_minimal() {
+            r
+        } else {
             eprintln!("skip: minimal.img not found");
             return;
         };
@@ -135,7 +137,9 @@ mod tests {
 
     #[test]
     fn read_xattrs_for_hello_txt() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -159,7 +163,9 @@ mod tests {
 
     #[test]
     fn read_xattrs_for_root_inode() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -170,7 +176,9 @@ mod tests {
 
     #[test]
     fn read_inline_xattrs_for_hello_txt() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -192,7 +200,9 @@ mod tests {
 
     #[test]
     fn inline_xattr_values_are_correct() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };

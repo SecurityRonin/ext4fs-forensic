@@ -116,7 +116,9 @@ pub fn verify_superblock_backups<R: Read + Seek>(
             Err(_) => continue,
         };
 
-        let backup_sb = if let Ok(sb) = Superblock::parse(&buf) { sb } else {
+        let backup_sb = if let Ok(sb) = Superblock::parse(&buf) {
+            sb
+        } else {
             results.push(SuperblockComparison {
                 group,
                 block,
@@ -184,7 +186,9 @@ mod tests {
 
     #[test]
     fn verify_backups_on_forensic_img() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip");
             return;
         };

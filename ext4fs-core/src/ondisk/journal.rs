@@ -189,7 +189,11 @@ impl JournalBlockTag {
         let escaped = flags & 0x01 != 0;
         let same_uuid = flags & 0x02 != 0;
         let last_tag = flags & 0x08 != 0;
-        let blocknr_hi = if is_64bit { u64::from(be32(buf, 0x08)) } else { 0 };
+        let blocknr_hi = if is_64bit {
+            u64::from(be32(buf, 0x08))
+        } else {
+            0
+        };
         let blocknr = (blocknr_hi << 32) | blocknr_lo;
         let checksum = be32(buf, 0x0C);
         // 16-byte base + 16-byte UUID when uuid is not shared

@@ -166,11 +166,14 @@ impl Superblock {
         let inode_size = if rev_level >= 1 { le16(buf, 0x58) } else { 128 };
 
         let log_block_size = le32(buf, 0x18);
-        let shift = 10u32.checked_add(log_block_size).filter(|&s| s < 32).ok_or_else(|| {
-            Ext4Error::InvalidSuperblock(format!(
-                "log_block_size {log_block_size} out of range (max 21)"
-            ))
-        })?;
+        let shift = 10u32
+            .checked_add(log_block_size)
+            .filter(|&s| s < 32)
+            .ok_or_else(|| {
+                Ext4Error::InvalidSuperblock(format!(
+                    "log_block_size {log_block_size} out of range (max 21)"
+                ))
+            })?;
         let block_size = 1u32 << shift;
 
         let feature_incompat_raw = if buf.len() > 0x64 { le32(buf, 0x60) } else { 0 };
@@ -221,8 +224,16 @@ impl Superblock {
 
         // s_desc_size == 0 means default (32); values 1–31 are invalid.
         let desc_size = {
-            let raw = if buf.len() > 0x100 { le16(buf, 0xFE) } else { 0 };
-            if raw == 0 { 32u16 } else { raw }
+            let raw = if buf.len() > 0x100 {
+                le16(buf, 0xFE)
+            } else {
+                0
+            };
+            if raw == 0 {
+                32u16
+            } else {
+                raw
+            }
         };
         if desc_size < 32 {
             return Err(Ext4Error::InvalidSuperblock(format!(

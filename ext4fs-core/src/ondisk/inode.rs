@@ -480,7 +480,9 @@ mod tests {
     #[test]
     fn verify_inode_checksum_on_forensic_img() {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/forensic.img");
-        let data = if let Ok(d) = std::fs::read(path) { d } else {
+        let data = if let Ok(d) = std::fs::read(path) {
+            d
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -507,7 +509,8 @@ mod tests {
         // Read inode 12 (hello.txt) raw bytes from inode table
         let ino: u32 = 12;
         let index = (ino - 1) % inodes_per_group;
-        let byte_offset = gd.inode_table * u64::from(sb.block_size) + u64::from(index) * u64::from(inode_size);
+        let byte_offset =
+            gd.inode_table * u64::from(sb.block_size) + u64::from(index) * u64::from(inode_size);
         let raw = &data[byte_offset as usize..(byte_offset + u64::from(inode_size)) as usize];
         let inode = Inode::parse(raw, inode_size).unwrap();
 

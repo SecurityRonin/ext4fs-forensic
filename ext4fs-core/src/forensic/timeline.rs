@@ -115,7 +115,9 @@ mod tests {
 
     #[test]
     fn generate_timeline_from_minimal() {
-        let mut reader = if let Some(r) = open_minimal() { r } else {
+        let mut reader = if let Some(r) = open_minimal() {
+            r
+        } else {
             eprintln!("skip: minimal.img not found");
             return;
         };
@@ -135,7 +137,9 @@ mod tests {
 
     #[test]
     fn forensic_timeline_contains_deletion_events() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -158,7 +162,9 @@ mod tests {
 
     #[test]
     fn forensic_timeline_contains_all_event_types() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -173,7 +179,9 @@ mod tests {
 
     #[test]
     fn forensic_timeline_is_sorted() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };

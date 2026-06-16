@@ -216,7 +216,9 @@ mod tests {
     #[test]
     fn verify_group_descriptor_checksum_on_forensic_img() {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/forensic.img");
-        let data = if let Ok(d) = std::fs::read(path) { d } else {
+        let data = if let Ok(d) = std::fs::read(path) {
+            d
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };

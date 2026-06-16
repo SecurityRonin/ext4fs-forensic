@@ -267,7 +267,9 @@ mod tests {
 
     #[test]
     fn parse_journal_from_minimal() {
-        let mut reader = if let Some(r) = open_minimal() { r } else {
+        let mut reader = if let Some(r) = open_minimal() {
+            r
+        } else {
             eprintln!("skip: minimal.img not found");
             return;
         };
@@ -282,7 +284,9 @@ mod tests {
 
     #[test]
     fn transactions_have_commit_timestamps() {
-        let mut reader = if let Some(r) = open_minimal() { r } else {
+        let mut reader = if let Some(r) = open_minimal() {
+            r
+        } else {
             eprintln!("skip: minimal.img not found");
             return;
         };
@@ -301,7 +305,9 @@ mod tests {
 
     #[test]
     fn parse_journal_no_journal_error() {
-        let mut reader = if let Some(r) = open_minimal() { r } else {
+        let mut reader = if let Some(r) = open_minimal() {
+            r
+        } else {
             eprintln!("skip: minimal.img not found");
             return;
         };
@@ -319,7 +325,9 @@ mod tests {
 
     #[test]
     fn parse_journal_from_forensic() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -337,7 +345,9 @@ mod tests {
 
     #[test]
     fn forensic_transactions_have_sequence_and_timestamps() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -355,7 +365,9 @@ mod tests {
 
     #[test]
     fn forensic_transactions_have_mappings() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -374,7 +386,9 @@ mod tests {
 
     #[test]
     fn forensic_journal_sequence_monotonic() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -396,7 +410,9 @@ mod tests {
 
     #[test]
     fn inode_history_for_known_inode() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -417,7 +433,9 @@ mod tests {
 
     #[test]
     fn inode_history_for_deleted_inode() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -433,7 +451,9 @@ mod tests {
 
     #[test]
     fn inode_history_for_nonexistent_inode() {
-        let mut reader = if let Some(r) = open_forensic() { r } else {
+        let mut reader = if let Some(r) = open_forensic() {
+            r
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -455,7 +475,9 @@ mod tests {
 
     #[test]
     fn journal_corrupt_truncated_data() {
-        let mut data = if let Some(d) = forensic_raw() { d } else {
+        let mut data = if let Some(d) = forensic_raw() {
+            d
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -496,7 +518,9 @@ mod tests {
 
     #[test]
     fn journal_corrupt_zero_block_size() {
-        let mut data = if let Some(d) = forensic_raw() { d } else {
+        let mut data = if let Some(d) = forensic_raw() {
+            d
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
@@ -546,7 +570,9 @@ mod tests {
 
     #[test]
     fn journal_corrupt_too_small() {
-        let data = if let Some(d) = forensic_raw() { d } else {
+        let data = if let Some(d) = forensic_raw() {
+            d
+        } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
