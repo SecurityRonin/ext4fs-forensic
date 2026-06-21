@@ -1,1 +1,6 @@
 /target/
+
+# cargo-fuzz build/run artifacts (the targets are committed; their outputs are not)
+/fuzz/target/
+/fuzz/artifacts/
+/fuzz/corpus/
