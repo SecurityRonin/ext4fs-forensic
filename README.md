@@ -76,11 +76,12 @@ Accepts **any `Read + Seek` source** — raw image files, EWF/E01 images (via th
 ext4fs = "0.1"
 ```
 
-## Test coverage
+## Trust, but verify
 
-- **220 tests** across unit and integration suites
-- **98.85% function coverage**, 87.86% line coverage
-- Validated against real forensic images with known deleted files, xattrs, symlinks, and journal transactions
+- **263 tests** across the workspace; `unsafe_code = "forbid"`, panic-free bounds-checked parsers, cargo-fuzz targets for the superblock / inode / directory readers.
+- **Format-level parsing is cross-checked against `mkfs.ext4` (e2fsprogs) output**: the superblock, group-descriptor, and inode CRC32C checksums e2fsprogs writes are independently recomputed by this crate and required to match — an independent oracle, not a self-graded fixture.
+- **Forensic recovery** (deleted inodes, directory-entry recovery, journal, timeline, slack, xattrs, symlinks) is currently validated against self-minted `mkfs.ext4` images with the generator's own bookkeeping as ground truth. An independent differential oracle (`debugfs` / `dumpe2fs` / The Sleuth Kit) is recommended and not yet wired.
+- Full per-capability evidence, tiers, and the honest gaps: **[Validation](https://securityronin.github.io/ext4fs-forensic/validation/)**.
 
 ## Design decisions that matter for forensics
 
