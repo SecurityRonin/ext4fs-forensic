@@ -22,6 +22,7 @@ bitflags = { workspace = true }
 blazehash = { workspace = true, optional = true }
 crc = { workspace = true }
 ewf = { workspace = true, optional = true }
+forensicnomicon = { workspace = true }
 
 [lints]
 workspace = true

@@ -372,6 +372,7 @@ dependencies = [
  "blazehash",
  "crc",
  "ewf",
+ "forensicnomicon 0.7.0",
 ]
 
 [[package]]
@@ -441,6 +442,12 @@ name = "forensicnomicon"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f4f25dba7d97bb3fd95ecc37506cfb4c1d8ea43de0a4206d4de0bbc6b28dc6a4"
+
+[[package]]
+name = "forensicnomicon"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfe546feee17338650992e6ee37251e8221bb707a46bf38ce210fef3c963fb90"
 
 [[package]]
 name = "fuser"
@@ -562,7 +569,7 @@ checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
 name = "iso9660-forensic"
 version = "0.6.0"
 dependencies = [
- "forensicnomicon",
+ "forensicnomicon 0.5.4",
  "sha1",
  "sha2",
  "thiserror",

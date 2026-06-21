@@ -15,6 +15,7 @@ license = "Apache-2.0"
 # here too, so a bump touches one line instead of every dependent.
 [workspace.dependencies]
 ext4fs = { package = "ext4fs-core", path = "ext4fs-core", version = "0.1.0" }
+forensicnomicon = "0.7"
 bitflags = "2"
 blazehash = { version = "0.2", default-features = false }
 crc = "3"
