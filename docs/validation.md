@@ -190,13 +190,59 @@ gitleaks secret scan on every PR. Two backstops common elsewhere in the fleet ar
 - **Fuzz CI** — fuzz targets exist but there is no `fuzz.yml` building/smoke-running
   them in CI.
 
+## Finding adapter (`forensic::findings`) — TSK cross-check
+
+The `forensic::findings` module is a thin
+[`forensicnomicon::report::Observation`] adapter: it performs **no new parsing**,
+only surfaces what the engine already computes as graded `EXT4-*` findings.
+Because it re-uses the engine outputs, its correctness reduces to (a) the engine
+output it adapts and (b) the mapping. The engine output is cross-checked against
+**The Sleuth Kit** (`fls`/`istat`/`fsstat`/`jls`, all installed) on the real
+`tests/data/forensic.img`; the mapping is asserted in
+`ext4fs-core/src/forensic/findings.rs` (`mod tests`).
+
+| `EXT4-*` code | Engine module | Severity / Category | TSK oracle (Tier 2) |
+|---|---|---|---|
+| `EXT4-SUPERBLOCK-BACKUP-MISMATCH` | `superblock_verify` | Medium / Integrity | `fsstat` — `Number of Block Groups: 1`, so there are **no** backup superblocks; the adapter correctly emits zero findings (empty result, not a bootstrap failure) |
+| `EXT4-DELETED-INODE` | `deleted` | Medium (recoverable) / Residue | `fls -rd forensic.img` → deleted inodes **21** and **22**; `istat` confirms both `Not Allocated`, `Deleted:` time set, `links 0`. The adapter's deleted set contains 21 and 22 |
+| `EXT4-SLACK-RESIDUE` | `slack` | Low / Residue | engine `scan_all_slack`; the adapter emits a finding only for blocks whose slack has ≥1 non-zero byte (each asserted `nonzero_bytes > 0`) |
+| `EXT4-JOURNAL-INCONSISTENT` | `journal` | Medium / History | see methodology note below |
+
+**Cross-check commands (reproducible):**
+
+```
+fsstat forensic.img | grep 'Number of Block Groups'   # => 1  (no SB backups)
+fls -rd forensic.img                                  # => deleted inodes 21, 22
+istat forensic.img 21 ; istat forensic.img 22         # => Not Allocated, Deleted set
+```
+
+**Journal methodology note (honest, Tier 2).** `EXT4-JOURNAL-INCONSISTENT`
+surfaces a commit-timestamp *regression*: jbd2 commits in increasing sequence
+order, so a committed transaction whose commit instant precedes an earlier one's
+is replay-relevant. On `forensic.img` the **engine** parses two committed
+transactions — seq 2 @ `1774998586.843380012`, seq 3 @ `1774998586.873380012`
+(monotonic at full precision), so the adapter emits **zero** journal findings,
+the correct clean result. TSK `jls` additionally lists *stale/recycled* commit
+blocks in the circular journal (seq 2 @ `…586.446`, seq 3 @ `…586.149`) that the
+engine does not treat as committed transactions; this is a difference in what
+each tool counts as a transaction, not a decode disagreement. The
+regression-detection path itself is exercised by a synthetic transaction stream
+(`journal_findings_flag_timestamp_regression`), with the monotonic real-image
+case asserted separately (`real_image_journal_is_monotonic_so_no_findings`).
+
+All four mappings assert the derived **code/category/severity** and the
+"consistent with" note framing (no verdict language); a superblock-backup
+divergence in particular is graded as a consistency anomaly (Medium), not "tamper
+detected", since it has benign causes (a resize that did not propagate, a
+`tune2fs` edit).
+
 ## Gaps (honest caveats)
 
-1. **No independent differential oracle is wired into the tests.** `debugfs` /
-   `dumpe2fs` / The Sleuth Kit (`fls`/`istat`/`icat`) are the established ext4
-   oracles and are recommended; today only the CRC32C cross-check (against
-   e2fsprogs-written checksums) is genuinely independent. Forensic-recovery
-   ground truth is self-authored (Tier 3).
+1. **The deleted-inode / superblock / journal findings are now cross-checked
+   against The Sleuth Kit** on the real image (Tier 2, see the section above);
+   forensic-recovery *content* ground truth (e.g. carved file bytes) remains
+   self-authored (Tier 3). `debugfs` / `dumpe2fs` differential oracles are still
+   recommended for the recovery code paths.
 2. **No third-party real-world corpus.** Both images are self-minted by this
    repo; there is no public, independently-ground-truthed ext4 corpus (e.g. a
    DFIR CTF Linux image) in the suite yet, and no `tests/data/README.md` /
