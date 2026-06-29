@@ -302,6 +302,7 @@ fn main() {
                 read_only: session_mgr.is_none(),
                 daemon,
                 fs_name: "ext4fs-fuse".to_string(),
+                layout: forensic_mount::MountLayout::DiskOverlay,
             };
 
             eprintln!("Mounting {image} at {mountpoint}");
