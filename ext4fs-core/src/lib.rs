@@ -6,6 +6,8 @@ pub mod error;
 pub mod forensic;
 pub mod inode;
 pub mod ondisk;
+#[cfg(feature = "vfs")]
+pub mod vfs;
 
 use block::BlockReader;
 use dir::DirReader;
