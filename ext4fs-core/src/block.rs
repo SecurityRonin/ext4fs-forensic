@@ -188,4 +188,20 @@ mod tests {
             crate::error::Ext4Error::BlockOutOfRange { .. }
         ));
     }
+
+    #[test]
+    fn reads_are_served_through_a_shared_ref() {
+        // The forensic-vfs `FileSystem` trait serves every read through `&self`
+        // so one mounted handle backs N workers. Pin that BlockReader reads take
+        // `&self`: two shared borrows read at the same time (uncompilable while
+        // the read methods take `&mut self`).
+        let data = load_minimal_image().expect("minimal.img required");
+        let reader = BlockReader::open(Cursor::new(data)).unwrap();
+        let a: &BlockReader<Cursor<Vec<u8>>> = &reader;
+        let b: &BlockReader<Cursor<Vec<u8>>> = &reader;
+        let x = a.read_bytes(1024, 2).unwrap();
+        let y = b.read_bytes(1024, 2).unwrap();
+        assert_eq!(x.len(), 2);
+        assert_eq!(y.len(), 2);
+    }
 }
