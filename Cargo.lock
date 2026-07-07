@@ -1159,6 +1159,7 @@ dependencies = [
  "blazehash",
  "crc",
  "ewf",
+ "forensic-vfs",
  "forensicnomicon",
 ]
 
@@ -1286,6 +1287,15 @@ dependencies = [
  "vmdk-core",
  "widestring",
  "zip",
+]
+
+[[package]]
+name = "forensic-vfs"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e1fd9ca5012d956da1cd418e2c40732f3e7d18638cd8705551e04fc7cc67030"
+dependencies = [
+ "thiserror 2.0.18",
 ]
 
 [[package]]

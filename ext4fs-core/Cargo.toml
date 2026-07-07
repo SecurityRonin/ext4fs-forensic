@@ -16,6 +16,9 @@ path = "src/lib.rs"
 default = ["hashing"]
 ewf = ["dep:ewf"]
 hashing = ["dep:blazehash"]
+# Adapt `Ext4Fs` to the forensic-vfs `FileSystem` trait (see `src/vfs.rs`) so an
+# ext4 volume composes as `Arc<dyn FileSystem>` in the forensic-vfs engine.
+vfs = ["dep:forensic-vfs"]
 
 [dependencies]
 bitflags = { workspace = true }
@@ -23,6 +26,10 @@ blazehash = { workspace = true, optional = true }
 crc = { workspace = true }
 ewf = { workspace = true, optional = true }
 forensicnomicon = { workspace = true }
+# forensic-vfs (KNOWLEDGE leaf) — the read-only FileSystem navigation contract.
+# Optional so a bare reader stays dependency-light; the `vfs` feature turns on
+# the `impl FileSystem for Ext4Fs` adapter.
+forensic-vfs = { version = "0.1", optional = true }
 
 [lints]
 workspace = true
