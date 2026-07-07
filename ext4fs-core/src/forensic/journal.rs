@@ -490,7 +490,7 @@ mod tests {
         assert!(journal_ino > 0);
 
         // Read journal inode to find its data blocks
-        let mut reader2 = open_forensic().unwrap();
+        let reader2 = open_forensic().unwrap();
         let mappings = reader2.inode_block_map(journal_ino).unwrap();
         if mappings.is_empty() {
             eprintln!("skip: journal inode has no block mappings");
@@ -528,7 +528,7 @@ mod tests {
         let sb = reader.block_reader().superblock();
         let journal_ino = u64::from(sb.journal_inum);
 
-        let mut reader2 = open_forensic().unwrap();
+        let reader2 = open_forensic().unwrap();
         let mappings = reader2.inode_block_map(journal_ino).unwrap();
         if mappings.is_empty() {
             eprintln!("skip: journal inode has no block mappings");

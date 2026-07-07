@@ -30,7 +30,7 @@ impl<R: Read + Seek> DirReader<R> {
     ///
     /// Reads the inode's data blocks and calls `parse_dir_block` on each
     /// block-sized chunk, then filters out deleted entries (inode == 0).
-    pub fn read_dir(&mut self, dir_ino: u64) -> Result<Vec<DirEntry>> {
+    pub fn read_dir(&self, dir_ino: u64) -> Result<Vec<DirEntry>> {
         let block_size = self.inode_reader.block_reader().block_size() as usize;
         let data = self.inode_reader.read_inode_data(dir_ino)?;
 
@@ -53,7 +53,7 @@ impl<R: Read + Seek> DirReader<R> {
     /// Look up a single name in directory inode `dir_ino`.
     ///
     /// Returns `Ok(Some(ino))` when found, `Ok(None)` when not found.
-    pub fn lookup(&mut self, dir_ino: u64, name: &[u8]) -> Result<Option<u64>> {
+    pub fn lookup(&self, dir_ino: u64, name: &[u8]) -> Result<Option<u64>> {
         let entries = self.read_dir(dir_ino)?;
         for e in entries {
             if e.name.as_slice() == name {
@@ -68,11 +68,11 @@ impl<R: Read + Seek> DirReader<R> {
     /// Always starts at inode 2 (root). Follows symlinks up to
     /// `MAX_SYMLINK_DEPTH` times. Returns `Ext4Error::PathNotFound` when
     /// any component is missing.
-    pub fn resolve_path(&mut self, path: &str) -> Result<u64> {
+    pub fn resolve_path(&self, path: &str) -> Result<u64> {
         self.resolve_path_inner(path, 0)
     }
 
-    fn resolve_path_inner(&mut self, path: &str, depth: u32) -> Result<u64> {
+    fn resolve_path_inner(&self, path: &str, depth: u32) -> Result<u64> {
         if depth > MAX_SYMLINK_DEPTH {
             return Err(Ext4Error::SymlinkLoop {
                 path: path.to_string(),
@@ -120,7 +120,7 @@ impl<R: Read + Seek> DirReader<R> {
 
     /// Resolve a relative symlink `target` whose link inode is inside
     /// directory `dir_ino`.
-    fn resolve_relative_link(&mut self, dir_ino: u64, target: &str, depth: u32) -> Result<u64> {
+    fn resolve_relative_link(&self, dir_ino: u64, target: &str, depth: u32) -> Result<u64> {
         if depth > MAX_SYMLINK_DEPTH {
             return Err(Ext4Error::SymlinkLoop {
                 path: target.to_string(),
@@ -167,7 +167,7 @@ impl<R: Read + Seek> DirReader<R> {
     ///
     /// For short symlinks (size <= 60 and no extents), the path is stored
     /// inline in `i_block`. Otherwise it is read from the data blocks.
-    pub fn read_link(&mut self, ino: u64) -> Result<Vec<u8>> {
+    pub fn read_link(&self, ino: u64) -> Result<Vec<u8>> {
         let inode = self.inode_reader.read_inode(ino)?;
         if inode.file_type() != FileType::Symlink {
             return Err(Ext4Error::NotASymlink(format!("inode {ino}")));
@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn read_root_directory() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         let entries = r.read_dir(2).unwrap();
         let names: Vec<String> = entries
             .iter()
@@ -214,7 +214,7 @@ mod tests {
 
     #[test]
     fn lookup_file_in_root() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         let ino = r.lookup(2, b"hello.txt").unwrap();
         assert!(ino.is_some());
         assert!(ino.unwrap() > 0);
@@ -222,34 +222,34 @@ mod tests {
 
     #[test]
     fn lookup_nonexistent() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         let ino = r.lookup(2, b"nonexistent.txt").unwrap();
         assert!(ino.is_none());
     }
 
     #[test]
     fn resolve_path_root() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         assert_eq!(r.resolve_path("/").unwrap(), 2);
     }
 
     #[test]
     fn resolve_path_file() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         let ino = r.resolve_path("/hello.txt").unwrap();
         assert!(ino > 0);
     }
 
     #[test]
     fn resolve_path_nested() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         let ino = r.resolve_path("/subdir/nested.txt").unwrap();
         assert!(ino > 0);
     }
 
     #[test]
     fn resolve_path_not_found() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         let err = r.resolve_path("/nonexistent").unwrap_err();
         assert!(matches!(err, Ext4Error::PathNotFound(_)));
     }
@@ -342,7 +342,7 @@ mod tests {
 
     #[test]
     fn read_link_inline() {
-        let mut r = if let Some(r) = open_forensic() {
+        let r = if let Some(r) = open_forensic() {
             r
         } else {
             eprintln!("skip: forensic.img not found");
@@ -356,7 +356,7 @@ mod tests {
 
     #[test]
     fn read_link_not_a_symlink() {
-        let mut r = if let Some(r) = open_forensic() {
+        let r = if let Some(r) = open_forensic() {
             r
         } else {
             eprintln!("skip: forensic.img not found");
@@ -369,7 +369,7 @@ mod tests {
 
     #[test]
     fn resolve_nonexistent_through_symlink() {
-        let mut r = if let Some(r) = open_forensic() {
+        let r = if let Some(r) = open_forensic() {
             r
         } else {
             eprintln!("skip: forensic.img not found");
@@ -384,7 +384,7 @@ mod tests {
 
     #[test]
     fn lookup_returns_none_for_missing_forensic() {
-        let mut r = if let Some(r) = open_forensic() {
+        let r = if let Some(r) = open_forensic() {
             r
         } else {
             eprintln!("skip: forensic.img not found");

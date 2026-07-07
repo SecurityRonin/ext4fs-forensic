@@ -2,10 +2,15 @@
 use crate::error::{Ext4Error, Result};
 use crate::ondisk::{GroupDescriptor, Superblock};
 use std::io::{Read, Seek, SeekFrom};
+use std::sync::{Mutex, PoisonError};
 
 #[derive(Debug)]
 pub struct BlockReader<R: Read + Seek> {
-    source: R,
+    // Interior mutability: the positioned `seek`+`read_exact` needs `&mut R`, but
+    // the forensic-vfs `FileSystem` contract serves every read through `&self`
+    // (one `Arc<dyn FileSystem>` shared across N workers). A `Mutex` gives that
+    // shared handle while keeping the reader `Send + Sync`.
+    source: Mutex<R>,
     superblock: Superblock,
     group_descs: Vec<GroupDescriptor>,
 }
@@ -59,7 +64,7 @@ impl<R: Read + Seek> BlockReader<R> {
         }
 
         Ok(BlockReader {
-            source,
+            source: Mutex::new(source),
             superblock,
             group_descs,
         })
@@ -81,7 +86,7 @@ impl<R: Read + Seek> BlockReader<R> {
         self.superblock.block_size
     }
 
-    pub fn read_block(&mut self, block_num: u64) -> Result<Vec<u8>> {
+    pub fn read_block(&self, block_num: u64) -> Result<Vec<u8>> {
         if block_num >= self.superblock.blocks_count {
             return Err(Ext4Error::BlockOutOfRange {
                 block: block_num,
@@ -92,7 +97,7 @@ impl<R: Read + Seek> BlockReader<R> {
         self.read_bytes(offset, self.superblock.block_size as usize)
     }
 
-    pub fn read_blocks(&mut self, start: u64, count: u64) -> Result<Vec<u8>> {
+    pub fn read_blocks(&self, start: u64, count: u64) -> Result<Vec<u8>> {
         let end = start.checked_add(count).ok_or(Ext4Error::BlockOutOfRange {
             block: start,
             max: self.superblock.blocks_count,
@@ -108,10 +113,13 @@ impl<R: Read + Seek> BlockReader<R> {
         self.read_bytes(offset, len)
     }
 
-    pub fn read_bytes(&mut self, offset: u64, len: usize) -> Result<Vec<u8>> {
-        self.source.seek(SeekFrom::Start(offset))?;
+    pub fn read_bytes(&self, offset: u64, len: usize) -> Result<Vec<u8>> {
+        // Poison-safe lock: a panic in another thread while holding the guard
+        // must not turn every subsequent read into a panic (Paranoid Gatekeeper).
+        let mut source = self.source.lock().unwrap_or_else(PoisonError::into_inner);
+        source.seek(SeekFrom::Start(offset))?;
         let mut buf = vec![0u8; len];
-        self.source.read_exact(&mut buf)?;
+        source.read_exact(&mut buf)?;
         Ok(buf)
     }
 
@@ -173,7 +181,7 @@ mod tests {
     #[test]
     fn read_block_zero() {
         let data = load_minimal_image().expect("minimal.img required");
-        let mut reader = BlockReader::open(Cursor::new(data)).unwrap();
+        let reader = BlockReader::open(Cursor::new(data)).unwrap();
         let block = reader.read_block(0).unwrap();
         assert_eq!(block.len(), 4096);
     }
@@ -181,7 +189,7 @@ mod tests {
     #[test]
     fn read_block_out_of_range() {
         let data = load_minimal_image().expect("minimal.img required");
-        let mut reader = BlockReader::open(Cursor::new(data)).unwrap();
+        let reader = BlockReader::open(Cursor::new(data)).unwrap();
         let err = reader.read_block(u64::MAX).unwrap_err();
         assert!(matches!(
             err,

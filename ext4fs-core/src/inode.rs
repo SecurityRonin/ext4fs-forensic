@@ -89,7 +89,7 @@ impl<R: Read + Seek> InodeReader<R> {
     ///
     /// Returns `Ext4Error::InodeOutOfRange` when `ino == 0` or exceeds
     /// the filesystem's inode count.
-    pub fn read_inode(&mut self, ino: u64) -> Result<Inode> {
+    pub fn read_inode(&self, ino: u64) -> Result<Inode> {
         let sb = self.block_reader.superblock();
         let max = u64::from(sb.inodes_count);
         if ino == 0 || ino > max {
@@ -116,7 +116,7 @@ impl<R: Read + Seek> InodeReader<R> {
 
     /// Read the raw inode bytes for an inode number.
     /// Returns the full inode-sized buffer from the inode table.
-    pub fn read_inode_raw(&mut self, ino: u64) -> Result<Vec<u8>> {
+    pub fn read_inode_raw(&self, ino: u64) -> Result<Vec<u8>> {
         let sb = self.block_reader.superblock();
         let inode_size = u64::from(sb.inode_size);
         let inodes_per_group = u64::from(sb.inodes_per_group);
@@ -138,7 +138,7 @@ impl<R: Read + Seek> InodeReader<R> {
     // -----------------------------------------------------------------------
 
     /// Return the full logical→physical block mapping for inode `ino`.
-    pub fn inode_block_map(&mut self, ino: u64) -> Result<Vec<BlockMapping>> {
+    pub fn inode_block_map(&self, ino: u64) -> Result<Vec<BlockMapping>> {
         let inode = self.read_inode(ino)?;
         if inode.uses_extents() {
             self.walk_extent_tree(&inode.i_block)
@@ -152,13 +152,13 @@ impl<R: Read + Seek> InodeReader<R> {
     /// The first 12 bytes are the `ExtentHeader`; subsequent 12-byte slots
     /// are either `ExtentLeaf` entries (depth == 0) or `ExtentIndex` entries
     /// (depth > 0) whose child blocks must be read and recursed into.
-    pub fn walk_extent_tree(&mut self, i_block: &[u8; 60]) -> Result<Vec<BlockMapping>> {
+    pub fn walk_extent_tree(&self, i_block: &[u8; 60]) -> Result<Vec<BlockMapping>> {
         let mut mappings = Vec::new();
         self.walk_extent_node(i_block.as_slice(), &mut mappings)?;
         Ok(mappings)
     }
 
-    fn walk_extent_node(&mut self, buf: &[u8], out: &mut Vec<BlockMapping>) -> Result<()> {
+    fn walk_extent_node(&self, buf: &[u8], out: &mut Vec<BlockMapping>) -> Result<()> {
         let header = ExtentHeader::parse(buf)?;
         let entries = header.entries as usize;
 
@@ -199,7 +199,7 @@ impl<R: Read + Seek> InodeReader<R> {
     ///   - offset  48     single-indirect pointer
     ///   - offset  52     double-indirect pointer
     ///   - offset  56     triple-indirect pointer
-    pub fn walk_indirect_blocks(&mut self, i_block: &[u8; 60]) -> Result<Vec<BlockMapping>> {
+    pub fn walk_indirect_blocks(&self, i_block: &[u8; 60]) -> Result<Vec<BlockMapping>> {
         let block_size = self.block_reader.block_size() as usize;
         let ptrs_per_block = block_size / 4;
 
@@ -317,7 +317,7 @@ impl<R: Read + Seek> InodeReader<R> {
     ///
     /// For inodes with the `INLINE_DATA` flag the content is the first
     /// `size` bytes of `i_block` (up to 60 bytes), returned directly.
-    pub fn read_inode_data(&mut self, ino: u64) -> Result<Vec<u8>> {
+    pub fn read_inode_data(&self, ino: u64) -> Result<Vec<u8>> {
         let inode = self.read_inode(ino)?;
         if inode.has_inline_data() {
             let len = (inode.size as usize).min(60);
@@ -367,7 +367,7 @@ impl<R: Read + Seek> InodeReader<R> {
     /// This is more efficient than `read_inode_data` for partial reads
     /// (e.g. FUSE `read` calls) because it skips blocks that fall entirely
     /// outside the requested window.
-    pub fn read_inode_data_range(&mut self, ino: u64, offset: u64, len: usize) -> Result<Vec<u8>> {
+    pub fn read_inode_data_range(&self, ino: u64, offset: u64, len: usize) -> Result<Vec<u8>> {
         let inode = self.read_inode(ino)?;
         if inode.has_inline_data() {
             let start = offset as usize;
@@ -433,7 +433,7 @@ impl<R: Read + Seek> InodeReader<R> {
 
     /// Return `true` if inode `ino` (1-based) is marked allocated in its
     /// group's inode bitmap.
-    pub fn is_inode_allocated(&mut self, ino: u64) -> Result<bool> {
+    pub fn is_inode_allocated(&self, ino: u64) -> Result<bool> {
         let sb = self.block_reader.superblock();
         let max = u64::from(sb.inodes_count);
         if ino == 0 || ino > max {
@@ -450,7 +450,7 @@ impl<R: Read + Seek> InodeReader<R> {
 
     /// Return `true` if block `block` is marked allocated in its group's
     /// block bitmap.
-    pub fn is_block_allocated(&mut self, block: u64) -> Result<bool> {
+    pub fn is_block_allocated(&self, block: u64) -> Result<bool> {
         let sb = self.block_reader.superblock();
         let blocks_per_group = u64::from(sb.blocks_per_group);
         let group = (block / blocks_per_group) as u32;
@@ -468,7 +468,7 @@ impl<R: Read + Seek> InodeReader<R> {
     /// Return all valid inodes in `group` as `(ino, Inode)` pairs.
     ///
     /// An entry is skipped when `mode == 0 && dtime == 0` (empty slot).
-    pub fn iter_inodes_in_group(&mut self, group: u32) -> Result<Vec<(u64, Inode)>> {
+    pub fn iter_inodes_in_group(&self, group: u32) -> Result<Vec<(u64, Inode)>> {
         let sb = self.block_reader.superblock();
         let inodes_per_group = u64::from(sb.inodes_per_group);
         let inode_size = sb.inode_size as usize;
@@ -501,7 +501,7 @@ impl<R: Read + Seek> InodeReader<R> {
     }
 
     /// Return all valid inodes across all block groups.
-    pub fn iter_all_inodes(&mut self) -> Result<Vec<(u64, Inode)>> {
+    pub fn iter_all_inodes(&self) -> Result<Vec<(u64, Inode)>> {
         let group_count = self.block_reader.group_count();
         let mut all = Vec::new();
         for g in 0..group_count {
@@ -536,7 +536,7 @@ mod tests {
         let data = std::fs::read(img_path).expect("minimal.img required");
         let br = BlockReader::open(Cursor::new(data)).unwrap();
         let ir = InodeReader::new(br);
-        let mut dr = DirReader::new(ir);
+        let dr = DirReader::new(ir);
         dr.resolve_path(path).unwrap()
     }
 
@@ -546,13 +546,13 @@ mod tests {
         let data = std::fs::read(img_path).expect("forensic.img required");
         let br = BlockReader::open(Cursor::new(data)).unwrap();
         let ir = InodeReader::new(br);
-        let mut dr = DirReader::new(ir);
+        let dr = DirReader::new(ir);
         dr.resolve_path(path).unwrap()
     }
 
     #[test]
     fn read_root_inode() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         let inode = r.read_inode(2).unwrap();
         assert_eq!(inode.file_type(), FileType::Directory);
         assert!(inode.links_count >= 2);
@@ -560,21 +560,21 @@ mod tests {
 
     #[test]
     fn read_inode_out_of_range() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         let err = r.read_inode(0).unwrap_err();
         assert!(matches!(err, Ext4Error::InodeOutOfRange { .. }));
     }
 
     #[test]
     fn read_file_data() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         let data = r.read_inode_data(2).unwrap();
         assert!(!data.is_empty());
     }
 
     #[test]
     fn inode_block_map_for_root() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         let inode = r.read_inode(2).unwrap();
         if inode.uses_extents() {
             let map = r.inode_block_map(2).unwrap();
@@ -585,13 +585,13 @@ mod tests {
 
     #[test]
     fn is_inode_allocated() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         assert!(r.is_inode_allocated(2).unwrap());
     }
 
     #[test]
     fn read_inode_data_extent_path_returns_data() {
-        let mut reader = open_minimal();
+        let reader = open_minimal();
         // Root inode (2) uses extents — verify the non-inline path works
         let inode = reader.read_inode(2).unwrap();
         assert!(!inode.has_inline_data());
@@ -637,7 +637,7 @@ mod tests {
 
     #[test]
     fn read_inode_raw_minimal() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         let inode_size = r.block_reader().superblock().inode_size as usize;
         let raw = r.read_inode_raw(2).unwrap();
         assert_eq!(
@@ -652,7 +652,7 @@ mod tests {
 
     #[test]
     fn read_inode_raw_out_of_range() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         assert!(r.read_inode_raw(0).is_err());
         assert!(r.read_inode_raw(u64::MAX).is_err());
     }
@@ -664,7 +664,7 @@ mod tests {
     #[test]
     fn inode_block_map_hello_txt() {
         let hello_ino = resolve_minimal("/hello.txt");
-        let mut r = open_minimal();
+        let r = open_minimal();
         let map = r.inode_block_map(hello_ino).unwrap();
         assert!(
             !map.is_empty(),
@@ -683,7 +683,7 @@ mod tests {
     #[test]
     fn read_inode_data_range_hello_prefix() {
         let hello_ino = resolve_minimal("/hello.txt");
-        let mut r = open_minimal();
+        let r = open_minimal();
         let data = r.read_inode_data_range(hello_ino, 0, 5).unwrap();
         assert_eq!(
             &data, b"Hello",
@@ -694,7 +694,7 @@ mod tests {
     #[test]
     fn read_inode_data_range_past_eof() {
         let hello_ino = resolve_minimal("/hello.txt");
-        let mut r = open_minimal();
+        let r = open_minimal();
         let inode = r.read_inode(hello_ino).unwrap();
         let data = r
             .read_inode_data_range(hello_ino, inode.size + 100, 10)
@@ -708,7 +708,7 @@ mod tests {
 
     #[test]
     fn is_block_allocated_block_zero() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         let alloc = r.is_block_allocated(0).unwrap();
         assert!(alloc, "block 0 (superblock) should be allocated");
     }
@@ -719,7 +719,7 @@ mod tests {
 
     #[test]
     fn iter_inodes_in_group_zero() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         let inodes = r.iter_inodes_in_group(0).unwrap();
         assert!(!inodes.is_empty(), "group 0 should have inodes");
         let inos: Vec<u64> = inodes.iter().map(|(ino, _)| *ino).collect();
@@ -732,7 +732,7 @@ mod tests {
 
     #[test]
     fn iter_all_inodes_includes_root() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         let all = r.iter_all_inodes().unwrap();
         assert!(all.len() >= 2, "should return multiple inodes");
         let inos: Vec<u64> = all.iter().map(|(ino, _)| *ino).collect();
@@ -745,7 +745,7 @@ mod tests {
 
     #[test]
     fn read_inode_data_directory() {
-        let mut r = open_minimal();
+        let r = open_minimal();
         let inode = r.read_inode(2).unwrap();
         assert_eq!(inode.file_type(), FileType::Directory);
         let data = r.read_inode_data(2).unwrap();
@@ -760,7 +760,7 @@ mod tests {
     #[test]
     fn read_inode_hello_txt() {
         let hello_ino = resolve_minimal("/hello.txt");
-        let mut r = open_minimal();
+        let r = open_minimal();
         let inode = r.read_inode(hello_ino).unwrap();
         assert_eq!(inode.file_type(), FileType::RegularFile);
         // "Hello, ext4!" without or with trailing newline
@@ -774,7 +774,7 @@ mod tests {
     #[test]
     fn read_inode_lost_found() {
         let lf_ino = resolve_minimal("/lost+found");
-        let mut r = open_minimal();
+        let r = open_minimal();
         let inode = r.read_inode(lf_ino).unwrap();
         assert_eq!(inode.file_type(), FileType::Directory);
         assert!(
@@ -789,7 +789,7 @@ mod tests {
 
     #[test]
     fn read_inode_raw_forensic() {
-        let mut r = open_forensic();
+        let r = open_forensic();
         let inode_size = r.block_reader().superblock().inode_size as usize;
         let raw = r.read_inode_raw(2).unwrap();
         assert_eq!(raw.len(), inode_size);
@@ -805,7 +805,7 @@ mod tests {
     #[test]
     fn read_inode_data_range_forensic_middle() {
         let hello_ino = resolve_forensic("/hello.txt");
-        let mut r = open_forensic();
+        let r = open_forensic();
         // hello.txt = "Hello, forensic world!\n" (23 bytes)
         // Read bytes 7..15 → "forensic"
         let data = r.read_inode_data_range(hello_ino, 7, 8).unwrap();
@@ -819,7 +819,7 @@ mod tests {
     #[test]
     fn read_inode_data_range_forensic_start() {
         let hello_ino = resolve_forensic("/hello.txt");
-        let mut r = open_forensic();
+        let r = open_forensic();
         let data = r.read_inode_data_range(hello_ino, 0, 5).unwrap();
         assert_eq!(&data, b"Hello");
     }
@@ -830,7 +830,7 @@ mod tests {
 
     #[test]
     fn is_block_allocated_forensic_block_zero() {
-        let mut r = open_forensic();
+        let r = open_forensic();
         assert!(
             r.is_block_allocated(0).unwrap(),
             "block 0 should be allocated on forensic.img"
@@ -839,7 +839,7 @@ mod tests {
 
     #[test]
     fn is_block_allocated_forensic_high_block() {
-        let mut r = open_forensic();
+        let r = open_forensic();
         // The forensic image is 32MB with 4096-byte blocks = 8192 blocks.
         // The last block should be unallocated (unused space beyond fs data).
         let sb = r.block_reader().superblock();
@@ -854,7 +854,7 @@ mod tests {
 
     #[test]
     fn is_block_allocated_forensic_superblock_area() {
-        let mut r = open_forensic();
+        let r = open_forensic();
         // Block 1 on a 4096-byte blocksize fs holds the superblock backup or GDT
         let alloc = r.is_block_allocated(1).unwrap();
         assert!(alloc, "block 1 should be allocated (GDT/superblock area)");

@@ -318,7 +318,7 @@ mod tests {
         let mut data = forensic_raw().unwrap();
 
         // First, find inode 12's block mappings
-        let mut reader_tmp = open_forensic().unwrap();
+        let reader_tmp = open_forensic().unwrap();
         let mappings = reader_tmp.inode_block_map(12).unwrap();
         if mappings.is_empty() {
             eprintln!("skip: inode 12 has no block mappings");
@@ -369,7 +369,7 @@ mod tests {
         let (off, _isz) = inode_byte_offset(&reader_orig, 12);
 
         // Read the original extent to know it has at least one entry
-        let mut reader_tmp = open_forensic().unwrap();
+        let reader_tmp = open_forensic().unwrap();
         let mappings = reader_tmp.inode_block_map(12).unwrap();
         if mappings.is_empty() {
             eprintln!("skip: inode 12 has no block mappings");
