@@ -5,6 +5,24 @@ ignore = [
     # miniz_oxide/flate2. The maintained successor is adler2, which the graph
     # already migrates to as deps update. No code path of ours is affected.
     "RUSTSEC-2025-0056",
+    # --- unmaintained-not-vulnerable (dormant crates, no known defect) ---
+    # bincode 1.3.3: the team declared 1.3.3 a complete version needing no updates;
+    # reaches us via blazehash-core's serialization. No vulnerability.
+    "RUSTSEC-2025-0141",
+    # fxhash 0.2.1: dormant hasher, no known defect; transitive via blazehash-core.
+    "RUSTSEC-2025-0057",
+    # number_prefix 0.4.0: dormant; via indicatif's progress bar. No vulnerability.
+    "RUSTSEC-2025-0119",
+    # --- quick-xml DoS advisories: UNREACHABLE in ext4fs (verified) ---
+    # RUSTSEC-2026-0194/0195 affect quick-xml 0.38.x (patched in >=0.41.0), pinned
+    # by `opendal` — the cloud-storage backend behind blazehash-core's OPTIONAL
+    # cloud feature, which ext4fs never enables. `cargo tree -i quick-xml` is empty
+    # and `cargo build` compiles zero quick-xml/opendal crates: the vulnerable code
+    # is never built into any ext4fs artifact, so the DoS cannot be triggered.
+    # (Root fix is upstream: blazehash-core should not offer the vulnerable opendal
+    # stack, or opendal must bump quick-xml >=0.41; tracked as fleet dep debt.)
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
 ]
 
 [licenses]
@@ -23,6 +41,12 @@ allow = [
     # tiny-keccak (CC0-1.0), a permissive public-domain-equivalent license, also
     # reaches us through blazehash-core.
     "CC0-1.0",
+    # option-ext (MPL-2.0), a weak file-level copyleft license, reaches us via the
+    # dirs/directories stack that forensic-mount uses for session directories.
+    "MPL-2.0",
+    # webpki-roots (CDLA-Permissive-2.0), a permissive data license for the CA trust
+    # store, reaches us via forensic-mount's rustls/ureq TLS stack.
+    "CDLA-Permissive-2.0",
 ]
 
 [bans]
@@ -31,7 +55,7 @@ allow = [
 # control; warn rather than fail (matches ntfs-forensic). ext4fs-core's own tree
 # stays lean via blazehash-core.
 multiple-versions = "warn"
-wildcards = "allow" # path deps (ext4fs, forensic-mount, ewf) have no version field
+wildcards = "allow" # the inter-crate ext4fs path dep carries a version, but keep lenient
 
 [[bans.skip]]
 name = "cpufeatures"

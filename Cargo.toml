@@ -7,7 +7,7 @@ resolver = "2"
 [workspace.package]
 version = "0.2.1"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "Apache-2.0"
 
 # Single source of truth for dependency versions (DRY): declare each once;
@@ -27,8 +27,8 @@ clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
-ewf = { version = "0.2", path = "../ewf/ewf" }
-forensic-mount = { version = "0.5", path = "../4n6mount" }
+ewf = "0.2"
+forensic-mount = "0.5"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
