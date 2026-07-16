@@ -113,6 +113,77 @@ jobs:
       - run: cargo test
         working-directory: ext4fs-forensic
 
+  coverage:
+    name: Coverage (forensic-vfs adapter, 100% lines)
+    runs-on: ubuntu-latest
+    steps:
+      - run: sudo apt-get install -y libfuse3-dev pkg-config
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: ext4fs-forensic
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ github.repository_owner }}/4n6mount
+          path: 4n6mount
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ github.repository_owner }}/ewf
+          path: ewf
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ github.repository_owner }}/iso9660-forensic
+          path: iso9660-forensic
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ github.repository_owner }}/vmdk-forensic
+          path: vmdk-forensic
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+        with:
+          workspaces: ext4fs-forensic
+      - uses: taiki-e/install-action@15449e3094499af05d8d964a1c884208e4b8b595 # v2.81.11
+        with:
+          tool: cargo-llvm-cov
+      # Measure WITH --all-features so the `vfs` adapter (behind the `vfs`
+      # feature) and its integration tests are actually covered — a bare
+      # `--lib` run would report the adapter as 0% and never gate it.
+      - name: Generate lcov (all features)
+        run: cargo llvm-cov -p ext4fs-core --all-features --lcov --output-path lcov.info
+        working-directory: ext4fs-forensic
+      # The forensic-vfs adapter (src/vfs.rs) is the interface published for the
+      # engine to compose an ext4 volume; every one of its lines must be
+      # exercised. Other modules carry pre-existing coverage debt tracked
+      # separately; this gate holds the adapter at 100%. A `// cov:unreachable`
+      # marker exempts a provably-dead defensive guard (kept for panic-freedom).
+      - name: Enforce 100% lines on the vfs adapter
+        shell: bash
+        working-directory: ext4fs-forensic
+        run: |
+          fail=0
+          gate=0
+          while IFS= read -r line; do
+            if [[ "$line" == SF:* ]]; then
+              f="${line#SF:}"
+              case "$f" in
+                */ext4fs-core/src/vfs.rs) gate=1 ;;
+                *) gate=0 ;;
+              esac
+            elif [[ "$gate" -eq 1 && "$line" =~ ^DA:([0-9]+),0$ ]]; then
+              n="${BASH_REMATCH[1]}"
+              src="$(sed -n "${n}p" "$f")"
+              if [[ "$src" == *cov:unreachable* ]]; then
+                echo "exempt (// cov:unreachable): $f:$n"
+              else
+                echo "::error::Uncovered adapter line $f:$n:$src"
+                fail=1
+              fi
+            fi
+          done < lcov.info
+          if [[ "$fail" -ne 0 ]]; then exit 1; fi
+          echo "forensic-vfs adapter fully line-covered (or annotated // cov:unreachable)."
+
   msrv:
     name: MSRV (1.85)
     runs-on: ubuntu-latest
