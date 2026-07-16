@@ -76,7 +76,7 @@ fn kind_root_and_geometry_match_tsk() {
         eprintln!("skip: minimal.img not found");
         return;
     };
-    assert_eq!(fs.kind(), FsKind::Ext);
+    assert_eq!(fs.kind(), FsKind::EXT);
     // fsstat: Root Directory 2.
     assert_eq!(ino_of(fs.root()), 2);
     // fsstat: Block Size 4096; ext logical sector is 512.

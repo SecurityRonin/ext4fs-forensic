@@ -1118,7 +1118,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1154,10 +1154,10 @@ dependencies = [
 
 [[package]]
 name = "ext4fs-cli"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "clap",
- "ext4fs-core 0.2.1",
+ "ext4fs-core 0.2.2",
  "serde",
  "serde_json",
  "uuid",
@@ -1177,7 +1177,7 @@ dependencies = [
 
 [[package]]
 name = "ext4fs-core"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "bitflags 2.13.1",
  "blazehash-core",
@@ -1189,10 +1189,10 @@ dependencies = [
 
 [[package]]
 name = "ext4fs-fuse"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "clap",
- "ext4fs-core 0.2.1",
+ "ext4fs-core 0.2.2",
  "forensic-mount",
  "serde_json",
 ]
@@ -1317,10 +1317,12 @@ dependencies = [
 
 [[package]]
 name = "forensic-vfs"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8684752c5461349ae9464e0aa38ca2b1930be3491f84e11298f4c11b4760ffe"
+checksum = "3cba259572a35ca7a2a71c2f2c7a225c9edcd57ddfbcc00b9ebaefebe4573891"
 dependencies = [
+ "forensicnomicon-core",
+ "state-history-forensic",
  "thiserror 2.0.18",
 ]
 
@@ -1336,9 +1338,9 @@ dependencies = [
 
 [[package]]
 name = "forensicnomicon-core"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b81fa3bf717c97e0b7a877f30e6bf4abaf9dca751d970dab9292d03ae757d152"
+checksum = "b4ae8f9096cf3b0fb8414b1e419e7a8697902892082a9180cbd009d6afe87caa"
 
 [[package]]
 name = "forensicnomicon-data"
@@ -2655,7 +2657,7 @@ dependencies = [
  "once_cell",
  "socket2 0.6.5",
  "tracing",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2916,7 +2918,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3258,6 +3260,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
+name = "state-history-forensic"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06d95f05c0dd49a5dfae0eb6cb6fae7bb3bd5c1f787300c94a3a5adecb44d98f"
+
+[[package]]
 name = "streebog"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3327,10 +3335,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3907,7 +3915,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

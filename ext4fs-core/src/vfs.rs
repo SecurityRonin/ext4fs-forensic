@@ -117,7 +117,7 @@ fn dirent_kind(dt: DirEntryType) -> NodeKind {
 
 impl<R: Read + Seek + Send> FileSystem for Ext4Fs<R> {
     fn kind(&self) -> FsKind {
-        FsKind::Ext
+        FsKind::EXT
     }
 
     fn root(&self) -> FileId {

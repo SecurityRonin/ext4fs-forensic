@@ -8,7 +8,7 @@ use forensic_mount::{
 };
 use std::fs::File;
 
-/// Wrapper to implement ForensicFs for Ext4Fs<File>.
+/// Wrapper to implement ForensicFs for `Ext4Fs<File>`.
 struct Ext4ForensicFs {
     fs: Ext4Fs<File>,
 }
