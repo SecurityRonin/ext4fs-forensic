@@ -296,3 +296,100 @@ impl<R: Read + Seek + Send> FileSystem for Ext4Fs<R> {
         Ok(ExtentStream::empty())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! Unit coverage for the pure mapping helpers. Every arm of `map_err`,
+    //! `node_kind`, and `dirent_kind` is total by construction, so each variant
+    //! is exercised directly here — the device/fifo/socket node kinds and the
+    //! I/O and decode error classes have no representative in the committed ext4
+    //! fixtures, and driving them through the adapter would require minting a
+    //! bespoke image per arm.
+    use super::{dirent_kind, map_err, node_kind};
+    use crate::error::Ext4Error;
+    use crate::ondisk::{dir_entry::DirEntryType, inode::FileType};
+    use forensic_vfs::{NodeKind, VfsError};
+
+    #[test]
+    fn map_err_io_is_io() {
+        let e = Ext4Error::Io(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "pipe"));
+        assert!(matches!(
+            map_err(e),
+            VfsError::Io {
+                op: "ext4 read",
+                ..
+            }
+        ));
+    }
+
+    /// Destructure an `OutOfRange` into its identifying fields, or `None` for any
+    /// other variant — keeps the assertions branch-free (no dead panic arm).
+    fn out_of_range(e: &VfsError) -> Option<(&'static str, u64, u64)> {
+        if let VfsError::OutOfRange {
+            what,
+            offset,
+            bound,
+            ..
+        } = e
+        {
+            Some((what, *offset, *bound))
+        } else {
+            None
+        }
+    }
+
+    #[test]
+    fn map_err_inode_range_is_out_of_range() {
+        let e = Ext4Error::InodeOutOfRange { ino: 999, max: 100 };
+        assert_eq!(out_of_range(&map_err(e)), Some(("ext4 inode", 999, 100)));
+    }
+
+    #[test]
+    fn map_err_block_range_is_out_of_range() {
+        let e = Ext4Error::BlockOutOfRange { block: 50, max: 10 };
+        assert_eq!(out_of_range(&map_err(e)), Some(("ext4 block", 50, 10)));
+    }
+
+    #[test]
+    fn out_of_range_helper_rejects_non_range_errors() {
+        // The destructuring helper yields None for anything that is not an
+        // OutOfRange, keeping the range assertions unambiguous.
+        let io = map_err(Ext4Error::Io(std::io::Error::other("x")));
+        assert_eq!(out_of_range(&io), None);
+    }
+
+    #[test]
+    fn map_err_other_is_decode() {
+        // Any structural error that is neither I/O nor a range miss folds into
+        // Decode with the ext4fs-core message preserved.
+        let e = Ext4Error::CorruptMetadata {
+            structure: "inode",
+            detail: "bad".into(),
+        };
+        assert!(matches!(map_err(e), VfsError::Decode { layer: "ext4", .. }));
+    }
+
+    #[test]
+    fn node_kind_covers_every_file_type() {
+        assert_eq!(node_kind(FileType::RegularFile), NodeKind::File);
+        assert_eq!(node_kind(FileType::Directory), NodeKind::Dir);
+        assert_eq!(node_kind(FileType::Symlink), NodeKind::Symlink);
+        assert_eq!(node_kind(FileType::CharDevice), NodeKind::Device);
+        assert_eq!(node_kind(FileType::BlockDevice), NodeKind::Device);
+        assert_eq!(node_kind(FileType::Fifo), NodeKind::Other);
+        assert_eq!(node_kind(FileType::Socket), NodeKind::Other);
+        assert_eq!(node_kind(FileType::Unknown), NodeKind::Other);
+    }
+
+    #[test]
+    fn dirent_kind_covers_every_dir_entry_type() {
+        assert_eq!(dirent_kind(DirEntryType::RegularFile), NodeKind::File);
+        assert_eq!(dirent_kind(DirEntryType::Directory), NodeKind::Dir);
+        assert_eq!(dirent_kind(DirEntryType::Symlink), NodeKind::Symlink);
+        assert_eq!(dirent_kind(DirEntryType::CharDevice), NodeKind::Device);
+        assert_eq!(dirent_kind(DirEntryType::BlockDevice), NodeKind::Device);
+        assert_eq!(dirent_kind(DirEntryType::Fifo), NodeKind::Other);
+        assert_eq!(dirent_kind(DirEntryType::Socket), NodeKind::Other);
+        assert_eq!(dirent_kind(DirEntryType::Unknown), NodeKind::Other);
+    }
+}
