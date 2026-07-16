@@ -1,6 +1,11 @@
 [advisories]
 version = 2
-ignore = []
+ignore = [
+    # adler is unmaintained but NOT vulnerable; it reaches us transitively via
+    # miniz_oxide/flate2. The maintained successor is adler2, which the graph
+    # already migrates to as deps update. No code path of ours is affected.
+    "RUSTSEC-2025-0056",
+]
 
 [licenses]
 version = 2
@@ -12,10 +17,20 @@ allow = [
     "ISC",
     "Unicode-3.0",
     "Zlib",
+    # xxhash-rust (BSL-1.0) is a legitimate forensic hash pulled by blazehash-core;
+    # the fleet allows BSL-1.0 rather than amputating the hash capability.
+    "BSL-1.0",
+    # tiny-keccak (CC0-1.0), a permissive public-domain-equivalent license, also
+    # reaches us through blazehash-core.
+    "CC0-1.0",
 ]
 
 [bans]
-multiple-versions = "deny"
+# Transitive version splits (bitflags 1/2, twox-hash 1/2, windows-sys 0.52/0.61,
+# getrandom 0.3/0.4, ...) are pulled by third-party and sibling deps we do not
+# control; warn rather than fail (matches ntfs-forensic). ext4fs-core's own tree
+# stays lean via blazehash-core.
+multiple-versions = "warn"
 wildcards = "allow" # path deps (ext4fs, forensic-mount, ewf) have no version field
 
 [[bans.skip]]

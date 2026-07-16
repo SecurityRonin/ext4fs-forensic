@@ -5,7 +5,7 @@ resolver = "2"
 # Single source of truth for fields shared by every member (DRY): bump version /
 # MSRV / license here once; members inherit via `field.workspace = true`.
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 rust-version = "1.85"
 license = "Apache-2.0"
@@ -14,10 +14,14 @@ license = "Apache-2.0"
 # members write `dep.workspace = true`. The inter-crate `ext4fs` version lives
 # here too, so a bump touches one line instead of every dependent.
 [workspace.dependencies]
-ext4fs = { package = "ext4fs-core", path = "ext4fs-core", version = "0.2.0" }
+ext4fs = { package = "ext4fs-core", path = "ext4fs-core", version = "0.2.1" }
 forensicnomicon = "1"
 bitflags = "2"
-blazehash = { version = "0.2", default-features = false }
+# Lean library core (hash primitives only) — NOT the full blazehash app, whose
+# opendal/cloud stack drags in a large, license-tainted transitive tree. The
+# import path stays `blazehash::algorithm` via the package rename (fleet rule:
+# "ext4fs-core depends on blazehash-core for algorithm::hash_bytes").
+blazehash = { package = "blazehash-core", version = "0.2" }
 crc = "3"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
