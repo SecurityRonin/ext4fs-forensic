@@ -11,8 +11,8 @@
 //!
 //! ## Mapping notes / known limits
 //! - **`gen` in listings.** ext directory entries carry the child inode number
-//!   and a file-type nibble but *not* the inode generation, so [`read_dir`] and
-//!   [`lookup`] emit `gen: 0` ("generation unknown at this layer"); [`meta`]
+//!   and a file-type nibble but *not* the inode generation, so `read_dir` and
+//!   `lookup` emit `gen: 0` ("generation unknown at this layer"); `meta`
 //!   reads the inode and could surface the true generation.
 //! - **Single stream.** ext has no alternate data streams; every non-`Default`
 //!   [`StreamId`] is refused loud rather than silently read as the default.

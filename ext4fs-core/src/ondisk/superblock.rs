@@ -146,7 +146,7 @@ impl Superblock {
     ///
     /// The slice should begin at the start of the superblock (i.e. byte 1024
     /// of the filesystem image has already been skipped by the caller).
-    /// A minimum of [`MIN_SUPERBLOCK_LEN`] bytes is required; a full 1024-byte
+    /// A minimum of `MIN_SUPERBLOCK_LEN` bytes is required; a full 1024-byte
     /// superblock is needed to access all extended fields.
     pub fn parse(buf: &[u8]) -> Result<Self> {
         if buf.len() < MIN_SUPERBLOCK_LEN {

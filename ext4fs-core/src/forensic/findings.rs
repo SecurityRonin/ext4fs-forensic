@@ -3,7 +3,7 @@
 //!
 //! This module performs **no new parsing**. It *surfaces* what the engine has
 //! already computed — superblock-backup comparisons, deleted inodes, file slack,
-//! and journal transactions — as graded `EXT4-*` [`Finding`]s, so a
+//! and journal transactions — as graded `EXT4-*` [`Finding`](forensicnomicon::report::Finding)s, so a
 //! disk-forensic / Issen orchestrator can aggregate ext4 findings uniformly
 //! alongside the partition and other filesystem layers.
 //!

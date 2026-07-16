@@ -329,7 +329,7 @@ impl Inode {
     /// deletes a file, it sets `dtime` to the current time. An inode with
     /// `links_count == 0` but `dtime == 0` is an **orphan** (unlinked while
     /// still open, or system crashed mid-deletion) — a forensically distinct
-    /// state. Use [`is_orphan`] to detect those.
+    /// state. Use [`Self::is_orphan`] to detect those.
     pub fn is_deleted(&self) -> bool {
         self.dtime != 0
     }
