@@ -780,25 +780,13 @@ dependencies = [
 
 [[package]]
 name = "ext4fs-cli"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "clap",
- "ext4fs-core 0.2.3",
+ "ext4fs-core 0.2.4",
  "serde",
  "serde_json",
  "uuid",
-]
-
-[[package]]
-name = "ext4fs-core"
-version = "0.2.3"
-dependencies = [
- "bitflags 2.13.1",
- "blazehash-core",
- "crc",
- "ewf",
- "forensic-vfs",
- "forensicnomicon",
 ]
 
 [[package]]
@@ -814,11 +802,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ext4fs-core"
+version = "0.2.4"
+dependencies = [
+ "bitflags 2.13.1",
+ "blazehash-core",
+ "crc",
+ "ewf",
+ "forensic-vfs",
+ "forensicnomicon",
+]
+
+[[package]]
 name = "ext4fs-fuse"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "clap",
- "ext4fs-core 0.2.3",
+ "ext4fs-core 0.2.4",
  "forensic-mount",
  "serde_json",
 ]
@@ -898,7 +898,7 @@ dependencies = [
  "dokan",
  "ewf",
  "exfat-fs",
- "ext4fs-core 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ext4fs-core 0.2.3",
  "flate2",
  "fuser",
  "hfsplus-forensic",

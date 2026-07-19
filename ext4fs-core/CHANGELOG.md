@@ -5,6 +5,12 @@ documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4](https://github.com/SecurityRonin/ext4fs-forensic/compare/v0.2.3...v0.2.4) - 2026-07-19
+
+### Fixed
+
+- *(deps)* bump forensic-vfs 0.4 -> 0.5
+
 ## [0.2.3]
 
 - Current published reader: pure-Rust, `forbid(unsafe)`, panic-free-by-lint,
