@@ -1,4 +1,7 @@
 #![forbid(unsafe_code)]
+// Production code is panic-free (unwrap_used/expect_used denied workspace-wide);
+// tests may unwrap/expect freely on fixtures they construct.
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 pub mod block;
 pub mod dir;

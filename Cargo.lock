@@ -811,6 +811,7 @@ dependencies = [
  "ewf",
  "forensic-vfs",
  "forensicnomicon",
+ "safe-read",
 ]
 
 [[package]]

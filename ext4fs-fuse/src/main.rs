@@ -1,4 +1,6 @@
 #![forbid(unsafe_code)]
+// Test modules may unwrap/expect freely on fixtures they construct.
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 use clap::{Parser, Subcommand};
 use ext4fs::Ext4Fs;

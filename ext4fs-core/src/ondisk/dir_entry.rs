@@ -61,8 +61,11 @@ impl DirEntry {
             });
         }
 
-        let inode = u32::from_le_bytes(buf[0..4].try_into().unwrap());
-        let rec_len = u16::from_le_bytes(buf[4..6].try_into().unwrap());
+        // In-bounds by the `buf.len() < HEADER_LEN` (8) guard above: offsets
+        // 0..4 and 4..6 lie within the first 8 bytes, so safe_read yields the
+        // real value (never the out-of-range 0). Behavior-preserving.
+        let inode = safe_read::le_u32(buf, 0);
+        let rec_len = safe_read::le_u16(buf, 4);
         let name_len = buf[6] as usize;
         let file_type = DirEntryType::from(buf[7]);
 

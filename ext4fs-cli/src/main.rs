@@ -1,4 +1,7 @@
 #![forbid(unsafe_code)]
+// Production main propagates errors with `?`; test modules (e.g. mcp::tests)
+// may unwrap/expect freely on fixtures they construct.
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 mod mcp;
 
@@ -30,12 +33,12 @@ enum Commands {
     Mcp,
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     match cli.command {
         Commands::Info { image } => {
-            let file = std::fs::File::open(&image).expect("cannot open image");
-            let fs = ext4fs::Ext4Fs::open(file).expect("cannot parse ext4");
+            let file = std::fs::File::open(&image)?;
+            let fs = ext4fs::Ext4Fs::open(file)?;
             let sb = fs.superblock();
             println!(
                 "{}",
@@ -45,26 +48,26 @@ fn main() {
                     "block_size": sb.block_size,
                     "blocks_count": sb.blocks_count,
                     "inodes_count": sb.inodes_count,
-                }))
-                .unwrap()
+                }))?
             );
         }
         Commands::Ls { image, path } => {
-            let file = std::fs::File::open(&image).expect("cannot open image");
-            let mut fs = ext4fs::Ext4Fs::open(file).expect("cannot parse ext4");
-            let entries = fs.read_dir(&path).expect("cannot read dir");
+            let file = std::fs::File::open(&image)?;
+            let mut fs = ext4fs::Ext4Fs::open(file)?;
+            let entries = fs.read_dir(&path)?;
             for e in &entries {
                 println!("{}", e.name_str());
             }
         }
         Commands::Read { image, path } => {
-            let file = std::fs::File::open(&image).expect("cannot open image");
-            let mut fs = ext4fs::Ext4Fs::open(file).expect("cannot parse ext4");
-            let data = fs.read_file(&path).expect("cannot read file");
-            std::io::Write::write_all(&mut std::io::stdout(), &data).expect("write failed");
+            let file = std::fs::File::open(&image)?;
+            let mut fs = ext4fs::Ext4Fs::open(file)?;
+            let data = fs.read_file(&path)?;
+            std::io::Write::write_all(&mut std::io::stdout(), &data)?;
         }
         Commands::Mcp => {
             mcp::run_mcp_server();
         }
     }
+    Ok(())
 }

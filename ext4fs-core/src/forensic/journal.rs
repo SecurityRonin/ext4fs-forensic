@@ -109,7 +109,15 @@ pub fn parse_journal<R: Read + Seek>(reader: &mut InodeReader<R>) -> Result<Jour
                         if tag_offset + 16 > block_data.len() {
                             break;
                         }
-                        let tag = JournalBlockTag::parse_v3(&block_data[tag_offset..], is_64bit);
+                        // In-bounds by the `tag_offset + 16 > len` guard above,
+                        // so parse_v3 is Ok here; the else-break degrades loudly
+                        // (stops scanning) rather than panicking if that ever
+                        // changes.
+                        let Ok(tag) =
+                            JournalBlockTag::parse_v3(&block_data[tag_offset..], is_64bit)
+                        else {
+                            break;
+                        };
                         pending_tags.push(tag.blocknr);
                         let is_last = tag.last_tag;
                         if tag.tag_size == 0 {

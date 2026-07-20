@@ -21,6 +21,10 @@ hashing = ["dep:blazehash"]
 vfs = ["dep:forensic-vfs"]
 
 [dependencies]
+# The fleet's single audited bounds-checked integer reader (no_std,
+# forbid(unsafe), fuzzed): reads return 0 out of range, never panic. Replaces
+# hand-rolled from_{le,be}_bytes(..).try_into().unwrap() slice reads.
+safe-read = "0.1"
 bitflags = { workspace = true }
 blazehash = { workspace = true, optional = true }
 crc = { workspace = true }

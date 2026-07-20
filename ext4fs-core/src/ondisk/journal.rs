@@ -9,16 +9,11 @@ pub const JBD2_FEATURE_INCOMPAT_CSUM_V2: u32 = 0x0000_0008;
 pub const JBD2_FEATURE_INCOMPAT_CSUM_V3: u32 = 0x0000_0010;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
-
-#[inline]
-fn be32(buf: &[u8], off: usize) -> u32 {
-    u32::from_be_bytes(buf[off..off + 4].try_into().unwrap())
-}
-
-#[inline]
-fn be64(buf: &[u8], off: usize) -> u64 {
-    u64::from_be_bytes(buf[off..off + 8].try_into().unwrap())
-}
+//
+// Big-endian integer fields are read via the fleet's audited `safe_read` crate
+// (bounds-checked, panic-free) rather than a hand-rolled `from_be_bytes(..)
+// .try_into().unwrap()` helper. Every call below is preceded by a `check_len`
+// guard, so the reads are in-bounds and yield the real value.
 
 fn check_len(buf: &[u8], need: usize, structure: &'static str) -> Result<()> {
     if buf.len() < need {
@@ -70,7 +65,7 @@ pub struct JournalHeader {
 impl JournalHeader {
     pub fn parse(buf: &[u8]) -> Result<Self> {
         check_len(buf, 12, "JournalHeader")?;
-        let magic = be32(buf, 0);
+        let magic = safe_read::be_u32(buf, 0);
         if magic != JOURNAL_MAGIC {
             return Err(Ext4Error::JournalCorrupt(format!(
                 "bad journal magic: 0x{magic:08X}"
@@ -78,8 +73,8 @@ impl JournalHeader {
         }
         Ok(Self {
             magic,
-            block_type: JournalBlockType::from(be32(buf, 4)),
-            sequence: be32(buf, 8),
+            block_type: JournalBlockType::from(safe_read::be_u32(buf, 4)),
+            sequence: safe_read::be_u32(buf, 8),
         })
     }
 }
@@ -132,19 +127,19 @@ impl JournalSuperblock {
         uuid.copy_from_slice(&buf[0x30..0x40]);
         Ok(Self {
             header,
-            block_size: be32(buf, 0x0C),
-            max_len: be32(buf, 0x10),
-            first: be32(buf, 0x14),
-            sequence: be32(buf, 0x18),
-            start: be32(buf, 0x1C),
-            errno: be32(buf, 0x20),
-            feature_compat: be32(buf, 0x24),
-            feature_incompat: be32(buf, 0x28),
-            feature_ro_compat: be32(buf, 0x2C),
+            block_size: safe_read::be_u32(buf, 0x0C),
+            max_len: safe_read::be_u32(buf, 0x10),
+            first: safe_read::be_u32(buf, 0x14),
+            sequence: safe_read::be_u32(buf, 0x18),
+            start: safe_read::be_u32(buf, 0x1C),
+            errno: safe_read::be_u32(buf, 0x20),
+            feature_compat: safe_read::be_u32(buf, 0x24),
+            feature_incompat: safe_read::be_u32(buf, 0x28),
+            feature_ro_compat: safe_read::be_u32(buf, 0x2C),
             uuid,
-            nr_users: be32(buf, 0x40),
+            nr_users: safe_read::be_u32(buf, 0x40),
             checksum_type: buf[0x50],
-            checksum: be32(buf, 0xFC),
+            checksum: safe_read::be_u32(buf, 0xFC),
         })
     }
 
@@ -183,29 +178,33 @@ pub struct JournalBlockTag {
 }
 
 impl JournalBlockTag {
-    pub fn parse_v3(buf: &[u8], is_64bit: bool) -> Self {
-        let blocknr_lo = u64::from(be32(buf, 0x00));
-        let flags = be32(buf, 0x04);
+    /// Parse a v3 block tag. Reads the 16-byte tag base (`blocknr_lo`, `flags`,
+    /// `blocknr_hi`, `checksum`); a shorter buffer is an invalid structure and
+    /// is rejected loudly rather than read as zeroes.
+    pub fn parse_v3(buf: &[u8], is_64bit: bool) -> Result<Self> {
+        check_len(buf, 16, "JournalBlockTag")?;
+        let blocknr_lo = u64::from(safe_read::be_u32(buf, 0x00));
+        let flags = safe_read::be_u32(buf, 0x04);
         let escaped = flags & 0x01 != 0;
         let same_uuid = flags & 0x02 != 0;
         let last_tag = flags & 0x08 != 0;
         let blocknr_hi = if is_64bit {
-            u64::from(be32(buf, 0x08))
+            u64::from(safe_read::be_u32(buf, 0x08))
         } else {
             0
         };
         let blocknr = (blocknr_hi << 32) | blocknr_lo;
-        let checksum = be32(buf, 0x0C);
+        let checksum = safe_read::be_u32(buf, 0x0C);
         // 16-byte base + 16-byte UUID when uuid is not shared
         let tag_size = if same_uuid { 16 } else { 32 };
-        Self {
+        Ok(Self {
             blocknr,
             checksum,
             escaped,
             same_uuid,
             last_tag,
             tag_size,
-        }
+        })
     }
 }
 
@@ -231,8 +230,8 @@ impl JournalCommit {
         let header = JournalHeader::parse(buf)?;
         Ok(Self {
             sequence: header.sequence,
-            commit_seconds: be64(buf, 0x30) as i64,
-            commit_nanoseconds: be32(buf, 0x38),
+            commit_seconds: safe_read::be_u64(buf, 0x30) as i64,
+            commit_nanoseconds: safe_read::be_u32(buf, 0x38),
         })
     }
 }
@@ -255,7 +254,7 @@ impl JournalRevoke {
     pub fn parse(buf: &[u8], is_64bit: bool) -> Result<Self> {
         check_len(buf, 16, "JournalRevoke")?;
         let header = JournalHeader::parse(buf)?;
-        let byte_count = be32(buf, 12) as usize;
+        let byte_count = safe_read::be_u32(buf, 12) as usize;
         check_len(buf, byte_count, "JournalRevoke data")?;
         let entry_size = if is_64bit { 8usize } else { 4 };
         let data = &buf[16..byte_count];
@@ -263,9 +262,9 @@ impl JournalRevoke {
         let mut off = 0;
         while off + entry_size <= data.len() {
             let blk = if is_64bit {
-                be64(data, off)
+                safe_read::be_u64(data, off)
             } else {
-                u64::from(be32(data, off))
+                u64::from(safe_read::be_u32(data, off))
             };
             revoked_blocks.push(blk);
             off += entry_size;
@@ -331,7 +330,7 @@ mod tests {
         buf[0..4].copy_from_slice(&500u32.to_be_bytes()); // blocknr
         buf[4..8].copy_from_slice(&0x08u32.to_be_bytes()); // flags: LAST_TAG
         buf[12..16].copy_from_slice(&0xDEAD_BEEFu32.to_be_bytes());
-        let tag = JournalBlockTag::parse_v3(&buf, false);
+        let tag = JournalBlockTag::parse_v3(&buf, false).unwrap();
         assert_eq!(tag.blocknr, 500);
         assert!(tag.last_tag);
         assert!(!tag.escaped);
