@@ -318,6 +318,14 @@ mod tests {
     }
 
     #[test]
+    fn parse_v3_rejects_truncated_tag() {
+        // A v3 tag reads up to 16 bytes; a shorter buffer is an invalid structure
+        // and must fail loud (Err) rather than panic or silently read zeroes.
+        let short = [0u8; 8];
+        assert!(JournalBlockTag::parse_v3(&short, false).is_err());
+    }
+
+    #[test]
     fn parse_block_tag_v3() {
         let mut buf = vec![0u8; 16];
         buf[0..4].copy_from_slice(&500u32.to_be_bytes()); // blocknr
