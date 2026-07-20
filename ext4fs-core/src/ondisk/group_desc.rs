@@ -125,9 +125,9 @@ impl GroupDescriptor {
     /// Verify the group descriptor CRC32C checksum.
     ///
     /// For `METADATA_CSUM` filesystems:
-    ///   seed = checksum_seed if nonzero, else crc32c(uuid)
-    ///   crc = crc32c(seed, le32(group_number))
-    ///   crc = crc32c(crc, descriptor_bytes with checksum field zeroed)
+    ///   seed = `checksum_seed` if nonzero, else crc32c(uuid)
+    ///   crc = crc32c(seed, `le32(group_number)`)
+    ///   crc = crc32c(crc, `descriptor_bytes` with checksum field zeroed)
     ///   stored checksum = low 16 bits of crc32c result
     ///
     /// The checksum field is 2 bytes at offset 0x1E.

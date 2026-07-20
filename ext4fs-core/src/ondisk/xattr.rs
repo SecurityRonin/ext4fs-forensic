@@ -22,7 +22,7 @@ fn le32(buf: &[u8], off: usize) -> u32 {
 /// The namespace prefix index stored in each xattr entry header.
 ///
 /// Values follow the kernel ext4 definitions:
-///   1 = user, 2 = posix_acl_access (security), 3 = posix_acl_default,
+///   1 = user, 2 = `posix_acl_access` (security), 3 = `posix_acl_default`,
 ///   4 = trusted, 6 = security (LSM), 7 = system.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum XattrNamespace {
@@ -52,11 +52,11 @@ impl From<u8> for XattrNamespace {
 /// On-disk header of an external xattr block (first 32 bytes).
 ///
 /// Layout (all little-endian):
-///   0..4   magic      (must be 0xEA02_0000)
+///   0..4   magic      (must be `0xEA02_0000`)
 ///   4..8   refcount
 ///   8..12  blocks
 ///   12..16 hash
-///   16..20 checksum   (metadata checksum when has_metadata_csum feature set)
+///   16..20 checksum   (metadata checksum when `has_metadata_csum` feature set)
 ///   20..32 reserved
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XattrBlockHeader {
@@ -109,16 +109,16 @@ impl XattrBlockHeader {
 /// One parsed xattr entry.
 ///
 /// On-disk entry layout (all little-endian):
-///   0      name_len   (u8)
-///   1      name_index (u8) → XattrNamespace
-///   2..4   value_offs (u16) — offset from start of value region
-///   4..8   value_inum (u32) — inode for ea_inode feature (0 otherwise)
-///   8..12  value_size (u32)
+///   0      `name_len`   (u8)
+///   1      `name_index` (u8) → `XattrNamespace`
+///   2..4   `value_offs` (u16) — offset from start of value region
+///   4..8   `value_inum` (u32) — inode for `ea_inode` feature (0 otherwise)
+///   8..12  `value_size` (u32)
 ///   12..16 hash       (u32)
-///   16..   name       (name_len bytes, NOT NUL-terminated)
+///   16..   name       (`name_len` bytes, NOT NUL-terminated)
 ///
 /// `entry_size` is the total byte length of the entry, rounded up to a
-/// 4-byte boundary:  (16 + name_len + 3) & !3
+/// 4-byte boundary:  (16 + `name_len` + 3) & !3
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XattrEntry {
     pub name_index: XattrNamespace,

@@ -160,7 +160,7 @@ impl<R: Read + Seek> Ext4Fs<R> {
         forensic::find_deleted_inodes(self.dir_reader.inode_reader_mut())
     }
 
-    /// Find all orphan inodes (links_count == 0, dtime == 0, mode != 0).
+    /// Find all orphan inodes (`links_count` == 0, dtime == 0, mode != 0).
     pub fn orphan_inodes(&mut self) -> Result<Vec<forensic::DeletedInode>> {
         forensic::find_orphan_inodes(self.dir_reader.inode_reader_mut())
     }
@@ -223,7 +223,7 @@ impl<R: Read + Seek> Ext4Fs<R> {
         forensic::history::inode_history(self.dir_reader.inode_reader_mut(), &journal, ino)
     }
 
-    /// Recover deleted directory entries from rec_len gaps in a single directory.
+    /// Recover deleted directory entries from `rec_len` gaps in a single directory.
     pub fn recover_dir_entries(
         &mut self,
         dir_ino: u64,

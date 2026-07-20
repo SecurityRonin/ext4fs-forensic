@@ -34,33 +34,21 @@ forensic-mount = "0.5"
 unsafe_code = "forbid"
 
 [workspace.lints.clippy]
-pedantic = { level = "warn", priority = -1 }
-correctness = { level = "deny", priority = -1 }
-suspicious = { level = "deny", priority = -1 }
-# Panic-free posture for an untrusted-input parser: no unwrap/expect in
-# production. Tests opt out via #![cfg_attr(test, allow(...))]; the CLI's
-# humble-object main propagates errors with `?` instead.
-unwrap_used = { level = "deny", priority = 0 }
-expect_used = { level = "deny", priority = 0 }
-module_name_repetitions = { level = "allow", priority = 1 }
-must_use_candidate = { level = "allow", priority = 1 }
-missing_errors_doc = { level = "allow", priority = 1 }
-missing_panics_doc = { level = "allow", priority = 1 }
+all                      = { level = "warn", priority = -1 }
+pedantic                 = { level = "warn", priority = -1 }
+correctness              = { level = "deny", priority = -1 }
+suspicious               = { level = "deny", priority = -1 }
+unwrap_used              = { level = "deny", priority = 0 }
+expect_used              = { level = "deny", priority = 0 }
+module_name_repetitions  = { level = "allow", priority = 1 }
+must_use_candidate       = { level = "allow", priority = 1 }
+missing_errors_doc       = { level = "allow", priority = 1 }
+missing_panics_doc       = { level = "allow", priority = 1 }
 cast_possible_truncation = { level = "allow", priority = 1 }
-cast_possible_wrap = { level = "allow", priority = 1 }
-cast_sign_loss = { level = "allow", priority = 1 }
-# binary parser patterns: field names mirror on-disk spec (ib_hi, it_hi, etc.)
-similar_names = { level = "allow", priority = 1 }
-# forensic recovery uses float comparisons for scoring thresholds
-float_cmp = { level = "allow", priority = 1 }
-# helper closures defined inside functions are idiomatic in parsers
-items_after_statements = { level = "allow", priority = 1 }
-# complex parsing functions legitimately exceed line limits
-too_many_lines = { level = "allow", priority = 1 }
-# `if let Some(x) = .. { x } else { skip }` skip-guards read clearly in
-# optional-fixture tests (fleet standard: ewf, vmdk-forensic, ntfs-forensic)
-manual_let_else = { level = "allow", priority = 1 }
-# doc comments intentionally use plain text for field names
-doc_markdown = { level = "allow", priority = 1 }
-# u64 as f64 used for forensic scoring ratios, precision loss is acceptable
-cast_precision_loss = { level = "allow", priority = 1 }
+cast_possible_wrap       = { level = "allow", priority = 1 }
+cast_sign_loss           = { level = "allow", priority = 1 }
+cast_precision_loss      = { level = "allow", priority = 1 }
+too_many_lines           = { level = "allow", priority = 1 }
+items_after_statements   = { level = "allow", priority = 1 }
+similar_names            = { level = "allow", priority = 1 }
+manual_let_else          = { level = "allow", priority = 1 }

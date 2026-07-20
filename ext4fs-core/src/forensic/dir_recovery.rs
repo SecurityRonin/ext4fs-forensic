@@ -14,7 +14,7 @@ pub struct RecoveredDirEntry {
     pub file_type: DirEntryType,
 }
 
-/// Recover deleted directory entries from rec_len gaps in a single directory.
+/// Recover deleted directory entries from `rec_len` gaps in a single directory.
 pub fn recover_dir_entries<R: Read + Seek>(
     reader: &mut InodeReader<R>,
     dir_ino: u64,

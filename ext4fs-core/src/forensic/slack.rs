@@ -14,7 +14,7 @@ pub struct SlackSpace {
     pub block: u64,
     /// Byte offset within the block where slack begins.
     pub slack_offset: usize,
-    /// The slack bytes (from slack_offset to end of block).
+    /// The slack bytes (from `slack_offset` to end of block).
     pub data: Vec<u8>,
 }
 

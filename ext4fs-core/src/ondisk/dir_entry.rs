@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 use crate::error::{Ext4Error, Result};
 
-/// File type stored in the dir_entry file_type byte (ext2 dir_entry_2 format).
+/// File type stored in the `dir_entry` `file_type` byte (ext2 `dir_entry_2` format).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DirEntryType {
     Unknown,
@@ -33,10 +33,10 @@ impl From<u8> for DirEntryType {
 ///
 /// Layout (all little-endian):
 ///   0..4  inode    u32
-///   4..6  rec_len  u16
-///   6     name_len u8
-///   7     file_type u8
-///   8..8+name_len  name bytes
+///   4..6  `rec_len`  u16
+///   6     `name_len` u8
+///   7     `file_type` u8
+///   `8..8+name_len`  name bytes
 #[derive(Debug, Clone)]
 pub struct DirEntry {
     pub inode: u32,
@@ -93,7 +93,7 @@ impl DirEntry {
         String::from_utf8_lossy(&self.name).into_owned()
     }
 
-    /// An entry with inode == 0 has been deleted (the space is reused by rec_len).
+    /// An entry with inode == 0 has been deleted (the space is reused by `rec_len`).
     pub fn is_deleted(&self) -> bool {
         self.inode == 0
     }

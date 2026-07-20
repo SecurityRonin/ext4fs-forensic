@@ -77,7 +77,7 @@ bitflags! {
 /// CRC-32C (Castagnoli) matching the Linux kernel's `crc32c_le()` function.
 ///
 /// The standard CRC-32/ISCSI algorithm has `xorout = 0xFFFFFFFF`, meaning
-/// the finalized result is XORed with all-ones.  The Linux kernel's CRC32C
+/// the finalized result is `XORed` with all-ones.  The Linux kernel's CRC32C
 /// implementation does **not** apply this final XOR — it returns the raw CRC
 /// register state.  We define a custom algorithm with `xorout = 0` to match.
 pub(crate) const EXT4_CRC32C: Algorithm<u32> = Algorithm {

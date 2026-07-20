@@ -156,7 +156,7 @@ mod tests {
                 length: 97,
             }],
         };
-        assert_eq!(result.recovery_percentage(), 3.0);
+        assert!((result.recovery_percentage() - 3.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -167,10 +167,10 @@ mod tests {
             recovered_size: 0,
             overwritten_ranges: Vec::new(),
         };
-        assert_eq!(result.recovery_percentage(), 0.0);
+        assert!((result.recovery_percentage() - 0.0).abs() < f64::EPSILON);
     }
 
-    /// Deleted inodes in ext4 have their size zeroed, so recover_file hits
+    /// Deleted inodes in ext4 have their size zeroed, so `recover_file` hits
     /// the `expected_size == 0` early-return path.
     #[test]
     fn recover_deleted_inode_21_hits_zero_size_path() {
@@ -185,7 +185,7 @@ mod tests {
         assert_eq!(result.recovered_size, 0);
         assert!(result.data.is_empty());
         assert!(result.overwritten_ranges.is_empty());
-        assert_eq!(result.recovery_percentage(), 0.0);
+        assert!((result.recovery_percentage() - 0.0).abs() < f64::EPSILON);
     }
 
     /// Deleted inode 22 also has zeroed size.
@@ -223,8 +223,8 @@ mod tests {
         }
     }
 
-    /// Patch a live inode to have size > 0 but a completely zeroed i_block,
-    /// triggering the `inode_block_map` Err → RecoveryFailed path (lines 49-54).
+    /// Patch a live inode to have size > 0 but a completely zeroed `i_block`,
+    /// triggering the `inode_block_map` Err → `RecoveryFailed` path (lines 49-54).
     #[test]
     fn recover_zeroed_extent_tree_error() {
         let reader_orig = if let Some(r) = open_forensic() {
@@ -264,7 +264,7 @@ mod tests {
     }
 
     /// Patch a live inode so extent header has entries=0 but size > 0,
-    /// triggering the `mappings.is_empty()` → RecoveryFailed path (lines 57-61).
+    /// triggering the `mappings.is_empty()` → `RecoveryFailed` path (lines 57-61).
     #[test]
     fn recover_empty_mappings_error() {
         let reader_orig = if let Some(r) = open_forensic() {
@@ -352,10 +352,10 @@ mod tests {
         // (no overwritten blocks)
         assert_eq!(result.recovered_size, result.expected_size);
         assert!(result.overwritten_ranges.is_empty());
-        assert_eq!(result.recovery_percentage(), 100.0);
+        assert!((result.recovery_percentage() - 100.0).abs() < f64::EPSILON);
     }
 
-    /// Patch a data block to be outside the image (unreachable), so read_block
+    /// Patch a data block to be outside the image (unreachable), so `read_block`
     /// fails, exercising the read error path (lines 90-95).
     #[test]
     fn recover_with_read_block_error() {

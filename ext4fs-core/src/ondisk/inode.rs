@@ -11,7 +11,7 @@ use crc::Crc;
 /// A nanosecond-precision timestamp as used in ext4 inodes.
 ///
 /// The `seconds` field is the full 34-bit signed epoch extended via the two
-/// low bits of the "extra" word. `nanoseconds` is always in [0, 999_999_999].
+/// low bits of the "extra" word. `nanoseconds` is always in [0, `999_999_999`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Timestamp {
     pub seconds: i64,
@@ -127,7 +127,7 @@ pub struct Inode {
     pub gid: u32,
 
     // --- size ---
-    /// Full 64-bit file size (i_size_lo | i_size_hi << 32).
+    /// Full 64-bit file size (`i_size_lo` | `i_size_hi` << 32).
     pub size: u64,
 
     // --- timestamps ---
@@ -141,7 +141,7 @@ pub struct Inode {
 
     // --- link / block counts ---
     pub links_count: u16,
-    /// Full 48-bit block count in 512-byte units (i_blocks_lo | i_blocks_hi << 32).
+    /// Full 48-bit block count in 512-byte units (`i_blocks_lo` | `i_blocks_hi` << 32).
     pub blocks_count: u64,
 
     // --- flags ---
@@ -318,7 +318,7 @@ impl Inode {
         self.flags.contains(InodeFlags::INLINE_DATA)
     }
 
-    /// True if this directory uses an HTree (htree/INDEX flag set).
+    /// True if this directory uses an `HTree` (htree/INDEX flag set).
     pub fn has_htree(&self) -> bool {
         self.flags.contains(InodeFlags::INDEX)
     }
@@ -334,7 +334,7 @@ impl Inode {
         self.dtime != 0
     }
 
-    /// Verify the inode's CRC32C checksum (METADATA_CSUM feature).
+    /// Verify the inode's CRC32C checksum (`METADATA_CSUM` feature).
     ///
     /// The algorithm:
     /// 1. Seed from `csum_seed` (or `crc32c(0xFFFFFFFF, uuid)` if zero)

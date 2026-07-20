@@ -85,21 +85,21 @@ impl JournalHeader {
 ///
 /// Offsets (all big-endian):
 ///   0x00 header (12 bytes)
-///   0x0C block_size
-///   0x10 max_len
+///   0x0C `block_size`
+///   0x10 `max_len`
 ///   0x14 first
 ///   0x18 sequence
 ///   0x1C start
 ///   0x20 errno
-///   0x24 feature_compat
-///   0x28 feature_incompat
-///   0x2C feature_ro_compat
+///   0x24 `feature_compat`
+///   0x28 `feature_incompat`
+///   0x2C `feature_ro_compat`
 ///   0x30 uuid (16 bytes)
-///   0x40 nr_users
+///   0x40 `nr_users`
 ///   0x44 dynsuper
-///   0x48 max_transaction
-///   0x4C max_trans_data
-///   0x50 checksum_type (1 byte)
+///   0x48 `max_transaction`
+///   0x4C `max_trans_data`
+///   0x50 `checksum_type` (1 byte)
 ///   0xFC checksum (u32)
 #[derive(Debug, Clone)]
 pub struct JournalSuperblock {
@@ -160,12 +160,12 @@ impl JournalSuperblock {
 
 /// A block tag inside a descriptor block.
 ///
-/// v3 layout (16 bytes, same_uuid=true) or 32 bytes (same_uuid=false):
-///   0x00  blocknr_lo (u32)
-///   0x04  flags (u32)  bit0=escaped, bit1=same_uuid, bit3=last_tag
-///   0x08  blocknr_hi (u32, only meaningful when is_64bit)
+/// v3 layout (16 bytes, `same_uuid=true`) or 32 bytes (`same_uuid=false`):
+///   0x00  `blocknr_lo` (u32)
+///   0x04  flags (u32)  bit0=escaped, `bit1=same_uuid`, `bit3=last_tag`
+///   0x08  `blocknr_hi` (u32, only meaningful when `is_64bit`)
 ///   0x0C  checksum (u32)
-///   0x10  uuid (16 bytes, present only when same_uuid=false)
+///   0x10  uuid (16 bytes, present only when `same_uuid=false`)
 #[derive(Debug, Clone)]
 pub struct JournalBlockTag {
     pub blocknr: u64,
@@ -213,10 +213,10 @@ impl JournalBlockTag {
 /// Commit block — marks end of a complete transaction.
 ///
 /// Offsets (beyond the 12-byte header):
-///   0x0C  checksum_type (u8)
-///   0x0D  checksum_size (u8)
-///   0x30  commit_seconds (i64 BE)
-///   0x38  commit_nanoseconds (u32 BE)
+///   0x0C  `checksum_type` (u8)
+///   0x0D  `checksum_size` (u8)
+///   0x30  `commit_seconds` (i64 BE)
+///   0x38  `commit_nanoseconds` (u32 BE)
 #[derive(Debug, Clone)]
 pub struct JournalCommit {
     pub sequence: u32,
