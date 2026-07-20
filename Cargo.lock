@@ -141,9 +141,9 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "apfs-core"
-version = "0.2.3"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "027e1fd6d460c601e3da7025bfa65a047060fa7e1a9259774e12b3f53d12a753"
+checksum = "23690bde20276549adb31daa06c5a4c1b0d3360b5f637c1b96485241ad9d7c15"
 dependencies = [
  "bitflags 2.13.1",
  "chrono",
@@ -279,9 +279,9 @@ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
 name = "bytemuck"
-version = "1.25.1"
+version = "1.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6aedf8ae72766347502cf3cb4f41cf5e9cc37d28bee90f1fdaaae15f9cf9424"
+checksum = "95832e849adfb21180ccb6826a99da14e5d266ae5c2e668e1602cf234f153797"
 dependencies = [
  "bytemuck_derive",
 ]
@@ -780,10 +780,10 @@ dependencies = [
 
 [[package]]
 name = "ext4fs-cli"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "clap",
- "ext4fs-core 0.2.4",
+ "ext4fs-core 0.2.5",
  "serde",
  "serde_json",
  "uuid",
@@ -791,9 +791,9 @@ dependencies = [
 
 [[package]]
 name = "ext4fs-core"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ea9eaf0a6aba35244fd80b33b2f1034cc32dd53a5afc6117be8c3c8be154b83"
+checksum = "7d423bfa8d7d232655c96a665ac0ede6a2485321b485f232c59c68f5081176b6"
 dependencies = [
  "bitflags 2.13.1",
  "blazehash-core",
@@ -803,7 +803,7 @@ dependencies = [
 
 [[package]]
 name = "ext4fs-core"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "bitflags 2.13.1",
  "blazehash-core",
@@ -815,10 +815,10 @@ dependencies = [
 
 [[package]]
 name = "ext4fs-fuse"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "clap",
- "ext4fs-core 0.2.4",
+ "ext4fs-core 0.2.5",
  "forensic-mount",
  "serde_json",
 ]
@@ -898,7 +898,7 @@ dependencies = [
  "dokan",
  "ewf",
  "exfat-fs",
- "ext4fs-core 0.2.3",
+ "ext4fs-core 0.2.4",
  "flate2",
  "fuser",
  "hfsplus-forensic",
@@ -919,9 +919,9 @@ dependencies = [
 
 [[package]]
 name = "forensic-vfs"
-version = "0.5.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "238d800beff9e362651569fd50591508ab04aa68321e4a3132625150b126ae8d"
+checksum = "285cbb38f775a1c3c476e7e20bffea29eea6a62f73e0721957c04cb3867d1fa6"
 dependencies = [
  "forensicnomicon-core",
  "state-history-forensic",
@@ -1083,9 +1083,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hfsplus-forensic"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e0c41a6f7d48bc684029b674bdc11e95a125e8339e4725e03d0645c6f0d2d17"
+checksum = "6b4e448af9c498de76c3c0a29472ae7e405586000f4743c0eac420ed0e67ef6e"
 dependencies = [
  "flate2",
  "forensicnomicon",
@@ -1159,9 +1159,9 @@ checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
 
 [[package]]
 name = "iso9660-forensic"
-version = "0.7.3"
+version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e44ae99ec6b459e4942d8f6605cb68673641954f28627e06822c44908e80ef6"
+checksum = "b3bb542c961daa8909d230eb762069c220a39cfce4579f3420ba0833c9e2ad2c"
 dependencies = [
  "forensicnomicon",
  "sha1",
@@ -1353,9 +1353,9 @@ dependencies = [
 
 [[package]]
 name = "ntfs-core"
-version = "0.9.3"
+version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "386649ea68eb50c04fe399cfb2fab621c5717a3f0c5389cfc75c6624a383f3fe"
+checksum = "197a8ce5b3e9add82aeda6988bfcf028541e7bd7c13b444e24e66724dde007e5"
 dependencies = [
  "bitflags 2.13.1",
  "chrono",
@@ -1579,7 +1579,7 @@ checksum = "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.0",
+ "syn 3.0.2",
 ]
 
 [[package]]
@@ -1734,9 +1734,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "3.0.0"
+version = "3.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2fac314a64dc9a36e61a9eb4261a5e9bbfbc922b27e518af97bc32b926cf967"
+checksum = "a207d6d6a2b7fc470b80443726053f18a2481b7e1eee970597051596567987a3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1771,7 +1771,7 @@ checksum = "43cbfe0cf76104d42a574802844187e84a305e531ed54455f11fbde0f10541cd"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.0",
+ "syn 3.0.2",
 ]
 
 [[package]]
