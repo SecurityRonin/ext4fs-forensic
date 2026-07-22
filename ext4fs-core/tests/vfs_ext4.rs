@@ -282,16 +282,40 @@ fn out_of_range_inode_maps_to_out_of_range_error() {
     }
 }
 
-// --- deleted / unallocated default to empty streams (not a bootstrap failure) ---
+// --- deleted defaults to an empty stream (not a bootstrap failure); unallocated
+//     enumerates real free-block runs from the per-group block bitmaps ---
 
 #[test]
-fn deleted_and_unallocated_are_empty_streams() {
+fn deleted_defaults_to_empty_stream() {
     let Some(fs) = open() else {
         eprintln!("skip: minimal.img not found");
         return;
     };
     assert_eq!(fs.deleted().unwrap().count(), 0);
-    assert_eq!(fs.unallocated().unwrap().count(), 0);
+}
+
+#[test]
+fn unallocated_enumerates_free_block_runs() {
+    use forensic_vfs::RunAlloc;
+
+    let Some(fs) = open() else {
+        eprintln!("skip: minimal.img not found");
+        return;
+    };
+    let block_size = u64::from(fs.sector_sizes().cluster_or_block);
+    let runs: Vec<_> = fs
+        .unallocated()
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    // A freshly mkfs'd image always has free space to report.
+    assert!(!runs.is_empty(), "expected free-block runs on minimal.img");
+    for r in &runs {
+        assert_eq!(r.alloc, RunAlloc::Unallocated);
+        // Every run is a whole number of blocks at a block-aligned offset.
+        assert!(r.run.len > 0 && r.run.len % block_size == 0);
+        assert_eq!(r.run.image_offset % block_size, 0);
+    }
 }
 
 // --- forensic.img: symlink node-kind, read_link target, and non-symlink empty

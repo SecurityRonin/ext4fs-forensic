@@ -16,8 +16,10 @@
 //!   reads the inode and could surface the true generation.
 //! - **Single stream.** ext has no alternate data streams; every non-`Default`
 //!   [`StreamId`] is refused loud rather than silently read as the default.
-//! - **Deleted/unallocated** are empty streams for now (ext4fs-core exposes
-//!   `deleted_inodes()`/`unallocated_blocks()`; wiring them here is a follow-up).
+//! - **Deleted** is an empty stream for now; carving deleted inodes here is a
+//!   follow-up. **Unallocated** enumerates free-block runs from the per-group
+//!   block bitmaps (a `BLOCK_UNINIT` group is reported wholly free without a
+//!   bitmap read).
 //! - **Symlinks** resolve through ext4fs-core (`read_link`); a non-symlink reads
 //!   as an empty target, matching the NTFS adapter.
 //! - **Unwritten (preallocated) extents** are reported as allocated runs; the
@@ -33,7 +35,7 @@ use forensic_vfs::{
 };
 
 use crate::error::Ext4Error;
-use crate::ondisk::{DirEntryType, FileType, Timestamp};
+use crate::ondisk::{DirEntryType, FileType, GroupDescFlags, Timestamp};
 use crate::Ext4Fs;
 
 /// The ext root directory is always inode 2.
@@ -130,15 +132,50 @@ struct GroupBitmap<'a> {
 /// byte `i / 8`, LSB first (ext4 convention); a `1` bit marks an allocated block.
 /// A byte beyond the slice is treated as fully allocated, so a truncated bitmap
 /// can never fabricate free runs.
-fn free_runs(_bitmap: &[u8], _blocks_in_group: u64) -> Vec<(u64, u64)> {
-    Vec::new()
+fn free_runs(bitmap: &[u8], blocks_in_group: u64) -> Vec<(u64, u64)> {
+    let mut runs = Vec::new();
+    let mut run_start: Option<u64> = None;
+    for bit in 0..blocks_in_group {
+        let allocated = match bitmap.get((bit / 8) as usize) {
+            Some(byte) => (byte >> (bit % 8)) & 1 == 1,
+            None => true, // a byte past the slice is conservatively allocated
+        };
+        if allocated {
+            if let Some(start) = run_start.take() {
+                runs.push((start, bit - start));
+            }
+        } else if run_start.is_none() {
+            run_start = Some(bit);
+        }
+    }
+    if let Some(start) = run_start {
+        runs.push((start, blocks_in_group - start));
+    }
+    runs
 }
 
 /// Emit each group's free-block runs as absolute-offset [`ByteRun`]s. The
 /// absolute block of group-relative bit `i` is `group.first_block + i`; its byte
 /// offset is `block * block_size`.
-fn unallocated_runs(_groups: &[GroupBitmap<'_>], _block_size: u64) -> Vec<ByteRun> {
-    Vec::new()
+fn unallocated_runs(groups: &[GroupBitmap<'_>], block_size: u64) -> Vec<ByteRun> {
+    let mut out = Vec::new();
+    for g in groups {
+        // A `None` bitmap is BLOCK_UNINIT: the whole (bounded) group is free.
+        let group_runs = match g.bitmap {
+            Some(bm) => free_runs(bm, g.blocks_in_group),
+            None if g.blocks_in_group > 0 => vec![(0, g.blocks_in_group)],
+            None => Vec::new(),
+        };
+        for (start_bit, len) in group_runs {
+            let first_block = g.first_block.saturating_add(start_bit);
+            out.push(ByteRun {
+                image_offset: first_block.saturating_mul(block_size),
+                len: len.saturating_mul(block_size),
+                flags: RunFlags::default(),
+            });
+        }
+    }
+    out
 }
 
 impl<R: Read + Seek + Send> FileSystem for Ext4Fs<R> {
@@ -319,7 +356,53 @@ impl<R: Read + Seek + Send> FileSystem for Ext4Fs<R> {
     }
 
     fn unallocated(&self) -> VfsResult<ExtentStream> {
-        Ok(ExtentStream::empty())
+        let br = self.dir_reader.inode_reader().block_reader();
+        let sb = br.superblock();
+        let block_size = u64::from(sb.block_size);
+        let blocks_per_group = u64::from(sb.blocks_per_group);
+        let blocks_count = sb.blocks_count;
+        // Bit 0 of group g's bitmap is block first_data_block + g*blocks_per_group.
+        let mut group_first = u64::from(sb.first_data_block);
+
+        // Read each group's block bitmap (skipping BLOCK_UNINIT groups) into owned
+        // buffers. A missing/short bitmap block fails loud via `read_block` rather
+        // than silently degrading to an empty stream.
+        let descriptors = br.group_descriptors();
+        let mut owned: Vec<(Option<Vec<u8>>, u64, u64)> = Vec::with_capacity(descriptors.len());
+        for gd in descriptors {
+            let blocks_in_group = blocks_count
+                .saturating_sub(group_first)
+                .min(blocks_per_group);
+            if blocks_in_group > 0 {
+                let bitmap = if gd.flags.contains(GroupDescFlags::BLOCK_UNINIT) {
+                    None
+                } else {
+                    Some(br.read_block(gd.block_bitmap).map_err(map_err)?)
+                };
+                owned.push((bitmap, group_first, blocks_in_group));
+            }
+            group_first = group_first.saturating_add(blocks_per_group);
+        }
+
+        let groups: Vec<GroupBitmap<'_>> = owned
+            .iter()
+            .map(|(bitmap, first_block, blocks_in_group)| GroupBitmap {
+                bitmap: bitmap.as_deref(),
+                first_block: *first_block,
+                blocks_in_group: *blocks_in_group,
+            })
+            .collect();
+
+        let out: Vec<VfsResult<RunInfo>> = unallocated_runs(&groups, block_size)
+            .into_iter()
+            .map(|run| {
+                Ok(RunInfo {
+                    run,
+                    alloc: RunAlloc::Unallocated,
+                })
+            })
+            .collect();
+        Ok(ExtentStream::new(out.into_iter()))
     }
 }
 
@@ -424,12 +507,9 @@ mod tests {
         use std::io::Cursor;
 
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/minimal.img");
-        let data = match std::fs::read(path) {
-            Ok(d) => d,
-            Err(_) => {
-                eprintln!("skip: minimal.img not found");
-                return;
-            }
+        let Ok(data) = std::fs::read(path) else {
+            eprintln!("skip: minimal.img not found");
+            return;
         };
         let fs = Ext4Fs::open(Cursor::new(data)).unwrap();
         let runs: Vec<_> = fs
