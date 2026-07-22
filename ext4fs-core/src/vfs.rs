@@ -115,6 +115,32 @@ fn dirent_kind(dt: DirEntryType) -> NodeKind {
     }
 }
 
+/// One block group's allocation bitmap for the unallocated-extent walk.
+/// `bitmap == None` encodes `BLOCK_UNINIT`: the group's data blocks are all free
+/// without an on-disk bitmap to read. `first_block` is the absolute block number
+/// of bit 0; `blocks_in_group` bounds the walk (the partial last group is short).
+struct GroupBitmap<'a> {
+    bitmap: Option<&'a [u8]>,
+    first_block: u64,
+    blocks_in_group: u64,
+}
+
+/// Maximal runs of consecutive free (0) bits in an ext4 block bitmap, over bits
+/// `0..blocks_in_group`, returned as `(start_bit, run_len)`. Bit `i` lives in
+/// byte `i / 8`, LSB first (ext4 convention); a `1` bit marks an allocated block.
+/// A byte beyond the slice is treated as fully allocated, so a truncated bitmap
+/// can never fabricate free runs.
+fn free_runs(_bitmap: &[u8], _blocks_in_group: u64) -> Vec<(u64, u64)> {
+    Vec::new()
+}
+
+/// Emit each group's free-block runs as absolute-offset [`ByteRun`]s. The
+/// absolute block of group-relative bit `i` is `group.first_block + i`; its byte
+/// offset is `block * block_size`.
+fn unallocated_runs(_groups: &[GroupBitmap<'_>], _block_size: u64) -> Vec<ByteRun> {
+    Vec::new()
+}
+
 impl<R: Read + Seek + Send> FileSystem for Ext4Fs<R> {
     fn kind(&self) -> FsKind {
         FsKind::EXT
@@ -305,10 +331,119 @@ mod tests {
     //! I/O and decode error classes have no representative in the committed ext4
     //! fixtures, and driving them through the adapter would require minting a
     //! bespoke image per arm.
-    use super::{dirent_kind, map_err, node_kind};
+    use super::{dirent_kind, free_runs, map_err, node_kind, unallocated_runs, GroupBitmap};
     use crate::error::Ext4Error;
     use crate::ondisk::{dir_entry::DirEntryType, inode::FileType};
-    use forensic_vfs::{NodeKind, VfsError};
+    use forensic_vfs::{ByteRun, NodeKind, RunFlags, VfsError};
+
+    #[test]
+    fn free_runs_all_free() {
+        assert_eq!(free_runs(&[0x00], 8), vec![(0, 8)]);
+    }
+
+    #[test]
+    fn free_runs_all_allocated() {
+        assert_eq!(free_runs(&[0xFF], 8), Vec::<(u64, u64)>::new());
+    }
+
+    #[test]
+    fn free_runs_low_nibble_allocated() {
+        // 0x0F = 0b0000_1111 -> bits 0..3 set (allocated), bits 4..7 clear (free).
+        assert_eq!(free_runs(&[0x0F], 8), vec![(4, 4)]);
+    }
+
+    #[test]
+    fn free_runs_alternating() {
+        // 0xAA = 0b1010_1010 -> free (0) bits at positions 0, 2, 4, 6 (LSB first).
+        assert_eq!(free_runs(&[0xAA], 8), vec![(0, 1), (2, 1), (4, 1), (6, 1)]);
+    }
+
+    #[test]
+    fn free_runs_spans_byte_boundary() {
+        assert_eq!(free_runs(&[0x00, 0x00], 12), vec![(0, 12)]);
+    }
+
+    #[test]
+    fn free_runs_honors_blocks_in_group() {
+        // Only the first 3 bits are counted even though the byte has 8 free bits.
+        assert_eq!(free_runs(&[0x00], 3), vec![(0, 3)]);
+    }
+
+    #[test]
+    fn free_runs_zero_blocks() {
+        assert_eq!(free_runs(&[0x00], 0), Vec::<(u64, u64)>::new());
+    }
+
+    #[test]
+    fn free_runs_short_bitmap_treats_missing_as_allocated() {
+        // Byte 1 is absent -> bits 8..15 are conservatively allocated, so the free
+        // run stops at the end of byte 0 rather than fabricating blocks 8..15.
+        assert_eq!(free_runs(&[0x00], 16), vec![(0, 8)]);
+    }
+
+    #[test]
+    fn unallocated_runs_maps_bits_to_absolute_offsets() {
+        let bm_a = [0x0Fu8]; // group A: free bits 4..7
+        let bm_c = [0x00u8]; // group C: all free (partial last group)
+        let groups = [
+            GroupBitmap {
+                bitmap: Some(&bm_a),
+                first_block: 0,
+                blocks_in_group: 8,
+            },
+            GroupBitmap {
+                bitmap: None, // BLOCK_UNINIT: whole group free
+                first_block: 8,
+                blocks_in_group: 8,
+            },
+            GroupBitmap {
+                bitmap: Some(&bm_c),
+                first_block: 16,
+                blocks_in_group: 3, // partial last group
+            },
+        ];
+        let run = |off: u64, len: u64| ByteRun {
+            image_offset: off,
+            len,
+            flags: RunFlags::default(),
+        };
+        assert_eq!(
+            unallocated_runs(&groups, 1024),
+            vec![
+                run(4 * 1024, 4 * 1024),  // group A blocks 4..7
+                run(8 * 1024, 8 * 1024),  // uninit group blocks 8..15
+                run(16 * 1024, 3 * 1024), // partial group blocks 16..18
+            ]
+        );
+    }
+
+    #[test]
+    fn unallocated_over_minimal_image_yields_runs() {
+        use crate::Ext4Fs;
+        use forensic_vfs::{FileSystem, RunAlloc};
+        use std::io::Cursor;
+
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/minimal.img");
+        let data = match std::fs::read(path) {
+            Ok(d) => d,
+            Err(_) => {
+                eprintln!("skip: minimal.img not found");
+                return;
+            }
+        };
+        let fs = Ext4Fs::open(Cursor::new(data)).unwrap();
+        let runs: Vec<_> = fs
+            .unallocated()
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        // A freshly mkfs'd image always has free space.
+        assert!(!runs.is_empty(), "expected unallocated runs on minimal.img");
+        for r in &runs {
+            assert_eq!(r.alloc, RunAlloc::Unallocated);
+            assert!(r.run.len > 0);
+        }
+    }
 
     #[test]
     fn map_err_io_is_io() {
