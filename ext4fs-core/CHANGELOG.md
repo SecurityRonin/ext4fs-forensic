@@ -5,6 +5,16 @@ documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6](https://github.com/SecurityRonin/ext4fs-forensic/compare/v0.2.5...v0.2.6) - 2026-07-22
+
+### Added
+
+- *(ext4fs-core)* GREEN — enumerate unallocated extents from block bitmaps
+
+### Fixed
+
+- *(ext4fs-core)* panic-free reader + enforce unwrap/expect deny
+
 ## [0.2.4](https://github.com/SecurityRonin/ext4fs-forensic/compare/v0.2.3...v0.2.4) - 2026-07-19
 
 ### Fixed
