@@ -22,8 +22,8 @@ use std::sync::Arc;
 
 use ext4fs::Ext4Fs;
 use forensic_vfs::{
-    Allocation, FileId, FileSystem, FsKind, NodeKind, ResidencyKind, StreamId, TimeZonePolicy,
-    VfsError,
+    Allocation, FileId, FileSystem, FsKind, NodeKind, ResidencyKind, RunAlloc, StreamId,
+    TimeZonePolicy, VfsError,
 };
 
 /// Open `minimal.img` as a shared `Arc<dyn FileSystem>` (proves `Send + Sync`).
@@ -492,4 +492,79 @@ fn meta_of_128_byte_inode_has_no_born_time() {
     assert!(m.times.born.is_none(), "no crtime on a 128-byte inode");
     // mtime is still present, just at seconds resolution.
     assert!(m.times.modified.is_some());
+}
+
+/// Tier-1: reconcile `unallocated()` against The Sleuth Kit's `fsstat` free-block
+/// count on the same committed image — a value-producing, oracle-checkable path,
+/// so synthetic byte-pattern tests alone would be tier-3.
+///
+/// ```text
+/// fsstat -f ext4 minimal.img
+///   Block Size: 4096
+///   Block Range: 0 - 1023  (1024 blocks, single block group, NOT BLOCK_UNINIT)
+///   Free Blocks: 947
+/// ```
+///
+/// TSK counts 947 free blocks × 4096 = `3_878_912` bytes of unallocated space. Our
+/// `unallocated()` walks the on-disk block bitmap independently; summing every
+/// extent `len` must equal the oracle exactly, or our bit→block mapping is wrong.
+///
+/// Env-gated (`EXT4_TIER1=1`) so it runs only when the oracle reconciliation is
+/// deliberately requested, matching the crate's real-image test convention.
+#[test]
+fn unallocated_total_matches_tsk_fsstat_free_blocks() {
+    if std::env::var("EXT4_TIER1").is_err() {
+        eprintln!("skip: set EXT4_TIER1=1 to run the TSK reconciliation");
+        return;
+    }
+    let Some(fs) = open() else {
+        eprintln!("skip: minimal.img not found");
+        return;
+    };
+
+    // TSK fsstat oracle: 947 free blocks × 4096-byte block.
+    const BLOCK_SIZE: u64 = 4096;
+    const TSK_FREE_BLOCKS: u64 = 947;
+    const TSK_FREE_BYTES: u64 = TSK_FREE_BLOCKS * BLOCK_SIZE; // 3_878_912
+
+    // The reader's own block size must agree with the oracle's.
+    assert_eq!(u64::from(fs.sector_sizes().cluster_or_block), BLOCK_SIZE);
+
+    let runs: Vec<_> = fs
+        .unallocated()
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+
+    let mut total = 0u64;
+    for r in &runs {
+        assert_eq!(
+            r.alloc,
+            RunAlloc::Unallocated,
+            "every extent from unallocated() must be marked Unallocated"
+        );
+        assert_eq!(
+            r.run.image_offset % BLOCK_SIZE,
+            0,
+            "extent offset must be block-aligned: {:?}",
+            r.run
+        );
+        assert_eq!(
+            r.run.len % BLOCK_SIZE,
+            0,
+            "extent length must be a whole number of blocks: {:?}",
+            r.run
+        );
+        total += r.run.len;
+    }
+
+    assert_eq!(
+        total,
+        TSK_FREE_BYTES,
+        "our unallocated total ({} bytes = {} blocks) must equal TSK fsstat's \
+         947 free blocks ({} bytes)",
+        total,
+        total / BLOCK_SIZE,
+        TSK_FREE_BYTES
+    );
 }

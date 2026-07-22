@@ -236,6 +236,53 @@ divergence in particular is graded as a consistency anomaly (Medium), not "tampe
 detected", since it has benign causes (a resize that did not propagate, a
 `tune2fs` edit).
 
+## Unallocated-extent enumeration (`unallocated()`) — TSK `fsstat` reconciliation
+
+`unallocated()` is a **value-producing, oracle-checkable** path — it walks each
+block group's on-disk allocation bitmap and emits the free runs as absolute-offset
+extents. That makes it exactly the kind of decoder where a synthetic round-trip
+alone is tier-3 (the LZNT1 trap): the enumeration must be reconciled against an
+**independent oracle** that counts free space its own way. The Sleuth Kit's
+`fsstat` is that oracle.
+
+**Oracle (The Sleuth Kit `fsstat` on `tests/data/minimal.img`):**
+
+```
+fsstat -f ext4 tests/data/minimal.img
+  Block Size: 4096
+  Block Range: 0 - 1023      (1024 blocks — a single block group, NOT BLOCK_UNINIT)
+  Free Blocks: 947
+```
+
+TSK reports **947 free blocks**; at the 4096-byte block size that is
+`947 × 4096 = 3_878_912` bytes of unallocated space.
+
+**Our result.** `unallocated()` reads the group's block bitmap directly, maps each
+free (0) bit to its absolute block, coalesces consecutive free bits into runs, and
+converts to byte extents. Summing every extent `len` gives **3_878_912 bytes
+(947 blocks) — an exact match** to `fsstat`. Every extent is additionally asserted
+block-aligned (offset and length are whole multiples of 4096) and marked
+`RunAlloc::Unallocated`. The two tools arrive at the same free count by independent
+routes (TSK's bitmap accounting vs. our bit-run walk), so the agreement is a
+genuine cross-check, not a self-fulfilling fixture.
+
+**Test:** `unallocated_total_matches_tsk_fsstat_free_blocks` in
+`ext4fs-core/tests/vfs_ext4.rs`, env-gated on `EXT4_TIER1=1` (it skips cleanly when
+unset, so it never gates line coverage; run it deliberately to reconcile against
+the oracle). Reproduce with:
+
+```
+EXT4_TIER1=1 cargo test -p ext4fs-core --features vfs \
+  --test vfs_ext4 unallocated_total_matches_tsk_fsstat_free_blocks
+```
+
+**Tier.** The *answer key* (the free-block count) is derived by an independent tool
+(TSK), but the image itself is self-minted by this repo — so, consistent with the
+finding-adapter cross-check above, this is **Tier 2** on the Evidence-Based-Rigor
+axis (real engine output whose ground truth is confirmed by an independent oracle;
+the scenario is ours). It is not Tier 1 (that would require an independently
+authored corpus).
+
 ## Gaps (honest caveats)
 
 1. **The deleted-inode / superblock / journal findings are now cross-checked
