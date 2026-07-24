@@ -154,6 +154,59 @@ fn free_runs(bitmap: &[u8], blocks_in_group: u64) -> Vec<(u64, u64)> {
     runs
 }
 
+/// One retained block group's bitmap-read plan: where its data blocks live and
+/// which block holds its allocation bitmap. `bitmap_block == None` is a
+/// `BLOCK_UNINIT` group — all data blocks free, with no on-disk bitmap to read.
+struct GroupPlan {
+    first_block: u64,
+    blocks_in_group: u64,
+    bitmap_block: Option<u64>,
+}
+
+/// Plan each retained block group's bitmap read — a pure pass over the group
+/// descriptors so every group-selection branch is exercised without a bespoke
+/// image. `descriptors` carries each group's `(is_block_uninit, block_bitmap)`
+/// in group order; group `g`'s data blocks span
+/// `[first_block, first_block + blocks_in_group)`, where `blocks_in_group` is
+/// the group size clamped to the tail past `blocks_count`. A group with no data
+/// blocks (`blocks_in_group == 0`, the empty tail) is dropped; a `BLOCK_UNINIT`
+/// group plans a `None` bitmap (all free); every other group plans a read of its
+/// bitmap block. The actual read (and its loud failure) stays in the caller.
+fn plan_group_bitmaps(
+    descriptors: &[(bool, u64)],
+    first_data_block: u64,
+    blocks_per_group: u64,
+    blocks_count: u64,
+) -> Vec<GroupPlan> {
+    // Group g's bitmap bit 0 is block `first_data_block + g * blocks_per_group`.
+    descriptors
+        .iter()
+        .enumerate()
+        .filter_map(|(g, &(is_block_uninit, block_bitmap))| {
+            let first_block =
+                first_data_block.saturating_add((g as u64).saturating_mul(blocks_per_group));
+            let blocks_in_group = blocks_count
+                .saturating_sub(first_block)
+                .min(blocks_per_group);
+            // The empty tail past `blocks_count` contributes no data blocks.
+            (blocks_in_group > 0).then_some(GroupPlan {
+                first_block,
+                blocks_in_group,
+                bitmap_block: if is_block_uninit {
+                    None
+                } else {
+                    Some(block_bitmap)
+                },
+            })
+        })
+        .collect()
+}
+
+/// One retained group's owned bitmap plus its `(first_block, blocks_in_group)`
+/// geometry. A `None` bitmap is a `BLOCK_UNINIT` group (all data blocks free,
+/// no on-disk bitmap to read).
+type OwnedGroupBitmap = (Option<Vec<u8>>, u64, u64);
+
 /// Emit each group's free-block runs as absolute-offset [`ByteRun`]s. The
 /// absolute block of group-relative bit `i` is `group.first_block + i`; its byte
 /// offset is `block * block_size`.
@@ -362,26 +415,36 @@ impl<R: Read + Seek + Send> FileSystem for Ext4Fs<R> {
         let blocks_per_group = u64::from(sb.blocks_per_group);
         let blocks_count = sb.blocks_count;
         // Bit 0 of group g's bitmap is block first_data_block + g*blocks_per_group.
-        let mut group_first = u64::from(sb.first_data_block);
+        let first_data_block = u64::from(sb.first_data_block);
 
-        // Read each group's block bitmap (skipping BLOCK_UNINIT groups) into owned
-        // buffers. A missing/short bitmap block fails loud via `read_block` rather
-        // than silently degrading to an empty stream.
-        let descriptors = br.group_descriptors();
-        let mut owned: Vec<(Option<Vec<u8>>, u64, u64)> = Vec::with_capacity(descriptors.len());
-        for gd in descriptors {
-            let blocks_in_group = blocks_count
-                .saturating_sub(group_first)
-                .min(blocks_per_group);
-            if blocks_in_group > 0 {
-                let bitmap = if gd.flags.contains(GroupDescFlags::BLOCK_UNINIT) {
-                    None
-                } else {
-                    Some(br.read_block(gd.block_bitmap).map_err(map_err)?)
-                };
-                owned.push((bitmap, group_first, blocks_in_group));
-            }
-            group_first = group_first.saturating_add(blocks_per_group);
+        // Which groups to read, and where, is decided purely (see
+        // `plan_group_bitmaps`); here we only perform each planned read. A
+        // BLOCK_UNINIT group has `bitmap_block == None`, so `Option::map` skips
+        // the read for it; a missing/short bitmap block fails loud via
+        // `read_block` rather than silently degrading to an empty stream.
+        let descriptors: Vec<(bool, u64)> = br
+            .group_descriptors()
+            .iter()
+            .map(|gd| {
+                (
+                    gd.flags.contains(GroupDescFlags::BLOCK_UNINIT),
+                    gd.block_bitmap,
+                )
+            })
+            .collect();
+        let plans = plan_group_bitmaps(
+            &descriptors,
+            first_data_block,
+            blocks_per_group,
+            blocks_count,
+        );
+        let mut owned: Vec<OwnedGroupBitmap> = Vec::with_capacity(plans.len());
+        for plan in &plans {
+            let bitmap = plan
+                .bitmap_block
+                .map(|b| br.read_block(b).map_err(map_err))
+                .transpose()?;
+            owned.push((bitmap, plan.first_block, plan.blocks_in_group));
         }
 
         let groups: Vec<GroupBitmap<'_>> = owned
@@ -414,7 +477,10 @@ mod tests {
     //! I/O and decode error classes have no representative in the committed ext4
     //! fixtures, and driving them through the adapter would require minting a
     //! bespoke image per arm.
-    use super::{dirent_kind, free_runs, map_err, node_kind, unallocated_runs, GroupBitmap};
+    use super::{
+        dirent_kind, free_runs, map_err, node_kind, plan_group_bitmaps, unallocated_runs,
+        GroupBitmap,
+    };
     use crate::error::Ext4Error;
     use crate::ondisk::{dir_entry::DirEntryType, inode::FileType};
     use forensic_vfs::{ByteRun, NodeKind, RunFlags, VfsError};
@@ -501,16 +567,42 @@ mod tests {
     }
 
     #[test]
+    fn unallocated_runs_uninit_zero_block_group_yields_no_runs() {
+        // A None (BLOCK_UNINIT) bitmap bounded to zero data blocks contributes
+        // nothing — the empty-group arm of `unallocated_runs`.
+        let groups = [GroupBitmap {
+            bitmap: None,
+            first_block: 0,
+            blocks_in_group: 0,
+        }];
+        assert!(unallocated_runs(&groups, 1024).is_empty());
+    }
+
+    #[test]
+    fn plan_group_bitmaps_normal_uninit_and_empty() {
+        // One pass drives all three per-group outcomes:
+        //   group 0 (normal)       -> plans a read of its bitmap block (Some);
+        //   group 1 (BLOCK_UNINIT) -> plans no read (None);
+        //   group 2 (past the end) -> blocks_in_group == 0, dropped entirely.
+        // blocks_per_group = 8, blocks_count = 16, so group 2 starts at block 16.
+        let plans = plan_group_bitmaps(&[(false, 7), (true, 99), (false, 5)], 0, 8, 16);
+        let got: Vec<_> = plans
+            .iter()
+            .map(|p| (p.bitmap_block, p.first_block, p.blocks_in_group))
+            .collect();
+        assert_eq!(got, vec![(Some(7), 0, 8), (None, 8, 8)]);
+    }
+
+    #[test]
     fn unallocated_over_minimal_image_yields_runs() {
         use crate::Ext4Fs;
         use forensic_vfs::{FileSystem, RunAlloc};
         use std::io::Cursor;
 
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/data/minimal.img");
-        let Ok(data) = std::fs::read(path) else {
-            eprintln!("skip: minimal.img not found");
-            return;
-        };
+        // minimal.img is a committed fixture, so this read is infallible in a
+        // checkout; the coverage gate is satisfiable from committed bytes alone.
+        let data = std::fs::read(path).expect("committed fixture tests/data/minimal.img");
         let fs = Ext4Fs::open(Cursor::new(data)).unwrap();
         let runs: Vec<_> = fs
             .unallocated()
