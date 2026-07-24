@@ -780,10 +780,10 @@ dependencies = [
 
 [[package]]
 name = "ext4fs-cli"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "clap",
- "ext4fs-core 0.2.6",
+ "ext4fs-core 0.2.7",
  "serde",
  "serde_json",
  "uuid",
@@ -803,7 +803,7 @@ dependencies = [
 
 [[package]]
 name = "ext4fs-core"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "bitflags 2.13.1",
  "blazehash-core",
@@ -816,10 +816,10 @@ dependencies = [
 
 [[package]]
 name = "ext4fs-fuse"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "clap",
- "ext4fs-core 0.2.6",
+ "ext4fs-core 0.2.7",
  "forensic-mount",
  "serde_json",
 ]
