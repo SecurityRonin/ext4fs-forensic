@@ -5,6 +5,12 @@ documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7](https://github.com/SecurityRonin/ext4fs-forensic/compare/ext4fs-core-v0.2.6...ext4fs-core-v0.2.7) - 2026-07-24
+
+### Fixed
+
+- *(ci)* cover vfs adapter unallocated() BLOCK_UNINIT + empty-group branches
+
 ## [0.2.6](https://github.com/SecurityRonin/ext4fs-forensic/compare/v0.2.5...v0.2.6) - 2026-07-22
 
 ### Added
