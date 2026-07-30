@@ -28,6 +28,9 @@ audit-as-crates-io = false
 [policy.ext4fs-fuse]
 audit-as-crates-io = false
 
+[policy.ext4fs-core]
+audit-as-crates-io = false
+
 [[exemptions.ad1-core]]
 version = "0.1.0"
 criteria = "safe-to-deploy"
