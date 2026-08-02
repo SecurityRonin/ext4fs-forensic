@@ -28,9 +28,6 @@ audit-as-crates-io = false
 [policy.ext4fs-fuse]
 audit-as-crates-io = false
 
-[policy.ext4fs-core]
-audit-as-crates-io = false
-
 [[exemptions.ad1-core]]
 version = "0.1.0"
 criteria = "safe-to-deploy"
@@ -289,10 +286,6 @@ criteria = "safe-to-deploy"
 
 [[exemptions.errno]]
 version = "0.3.14"
-criteria = "safe-to-deploy"
-
-[[exemptions.ewf]]
-version = "0.2.3"
 criteria = "safe-to-deploy"
 
 [[exemptions.exfat-fs]]
