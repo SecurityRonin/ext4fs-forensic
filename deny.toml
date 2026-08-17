@@ -13,16 +13,6 @@ ignore = [
     "RUSTSEC-2025-0057",
     # number_prefix 0.4.0: dormant; via indicatif's progress bar. No vulnerability.
     "RUSTSEC-2025-0119",
-    # --- quick-xml DoS advisories: UNREACHABLE in ext4fs (verified) ---
-    # RUSTSEC-2026-0194/0195 affect quick-xml 0.38.x (patched in >=0.41.0), pinned
-    # by `opendal` — the cloud-storage backend behind blazehash-core's OPTIONAL
-    # cloud feature, which ext4fs never enables. `cargo tree -i quick-xml` is empty
-    # and `cargo build` compiles zero quick-xml/opendal crates: the vulnerable code
-    # is never built into any ext4fs artifact, so the DoS cannot be triggered.
-    # (Root fix is upstream: blazehash-core should not offer the vulnerable opendal
-    # stack, or opendal must bump quick-xml >=0.41; tracked as fleet dep debt.)
-    "RUSTSEC-2026-0194",
-    "RUSTSEC-2026-0195",
 ]
 
 [licenses]
@@ -47,6 +37,10 @@ allow = [
     # webpki-roots (CDLA-Permissive-2.0), a permissive data license for the CA trust
     # store, reaches us via forensic-mount's rustls/ureq TLS stack.
     "CDLA-Permissive-2.0",
+    # libbz2-rs-sys carries upstream libbzip2's BSD-style license verbatim. It arrives
+    # as forensic-mount -> sevenz-rust2 -> bzip2 -> libbz2-rs-sys, i.e. 7z
+    # decompression. Permissive, not copyleft; 4n6mount allows it for the same path.
+    "bzip2-1.0.6",
 ]
 
 [bans]

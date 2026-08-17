@@ -305,6 +305,8 @@ fn main() {
                 daemon,
                 fs_name: "ext4fs-fuse".to_string(),
                 layout: forensic_mount::MountLayout::DiskOverlay,
+                // This adapter already computes deleted inodes; render them.
+                deleted_mode: forensic_mount::DeletedMode::default(),
             };
 
             eprintln!("Mounting {image} at {mountpoint}");
