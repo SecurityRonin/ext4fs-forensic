@@ -47,6 +47,10 @@ allow = [
     # webpki-roots (CDLA-Permissive-2.0), a permissive data license for the CA trust
     # store, reaches us via forensic-mount's rustls/ureq TLS stack.
     "CDLA-Permissive-2.0",
+    # libbz2-rs-sys carries upstream libbzip2's BSD-style license verbatim. It arrives
+    # as forensic-mount -> sevenz-rust2 -> bzip2 -> libbz2-rs-sys, i.e. 7z
+    # decompression. Permissive, not copyleft; 4n6mount allows it for the same path.
+    "bzip2-1.0.6",
 ]
 
 [bans]
