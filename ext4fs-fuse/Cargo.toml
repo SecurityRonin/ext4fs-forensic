@@ -2,7 +2,13 @@
 name = "ext4fs-fuse"
 version.workspace = true
 edition.workspace = true
-rust-version.workspace = true
+# Deliberately NOT the workspace floor. The workspace declares 1.88 because
+# ext4fs-core is a published library whose downstreams pin against it. This
+# member is a binary with no such promise, and its mount stack
+# (forensic-mount -> forensic-vfs-engine -> archive-core -> sevenz-rust2)
+# requires 1.93. Raising the workspace value instead would break the library's
+# promise to satisfy a binary's dependency.
+rust-version = "1.93"
 description = "Forensic FUSE mount for ext4 images"
 license.workspace = true
 
