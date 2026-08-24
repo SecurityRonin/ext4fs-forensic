@@ -850,6 +850,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ext4fs-forensic"
+version = "0.2.8"
+dependencies = [
+ "ext4fs-core 0.2.8",
+ "forensicnomicon",
+]
+
+[[package]]
 name = "ext4fs-fuse"
 version = "0.2.8"
 dependencies = [
