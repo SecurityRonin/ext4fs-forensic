@@ -1,0 +1,23 @@
+[package]
+name = "ext4fs-forensic"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "ext4 filesystem tamper/recovery analyzer — graded findings (recoverable deleted inodes, deletion-time contradictions) over the ext4fs-core reader. Re-exports the reader surface."
+repository = "https://github.com/SecurityRonin/ext4fs-forensic"
+authors = ["Albert Hui <albert@securityronin.com>"]
+readme = "README.md"
+keywords = ["forensics", "ext4", "filesystem", "dfir", "recovery"]
+categories = ["filesystem", "parser-implementations"]
+
+[lib]
+name = "ext4fs_forensic"
+path = "src/lib.rs"
+
+[dependencies]
+ext4fs = { workspace = true }
+forensicnomicon = { workspace = true }
+
+[lints]
+workspace = true
