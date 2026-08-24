@@ -14,7 +14,7 @@ per-site `#[allow]` when a real benefit (e.g. an `mmap` scanner in `ewf` /
 
 ext4fs has no such justification. It reads the image through a `Read + Seek`
 block abstraction (`BlockReader` over any source), not a memory map — see
-`Ext4Fs<R: Read + Seek>` (`ext4fs-core/src/lib.rs`) and `block.rs`. Nothing in
+`Ext4Fs<R: Read + Seek>` (`core/src/lib.rs`) and `block.rs`. Nothing in
 the parser needs raw pointers or `get_unchecked`; integer field reads route
 through the `safe-read` crate (ADR 0004). So the crate can hold the strongest
 posture at zero cost.
@@ -23,8 +23,8 @@ posture at zero cost.
 
 Adopt **`unsafe_code = "forbid"`** at the workspace level
 (`Cargo.toml [workspace.lints.rust]`) and `#![forbid(unsafe_code)]` at each
-crate root (`ext4fs-core/src/lib.rs`, `ext4fs-core/src/forensic/mod.rs`,
-`ext4fs-cli/src/main.rs`, `ext4fs-cli/src/mcp.rs`). Accept **any `Read + Seek`
+crate root (`core/src/lib.rs`, `core/src/forensic/mod.rs`,
+`cli/src/main.rs`, `cli/src/mcp.rs`). Accept **any `Read + Seek`
 source** — raw image, EWF/E01 (via the `ewf` feature, ADR 0008), or a custom
 reader — rather than an `mmap`, so the forbid holds.
 

@@ -19,7 +19,7 @@ verification as a **separate, non-fatal boolean check** rather than folding it
 into the parse result:
 
 - `Superblock::verify_checksum(&self, raw_buf) -> bool`
-  (`ext4fs-core/src/ondisk/superblock.rs`) recomputes CRC32C and reports the
+  (`core/src/ondisk/superblock.rs`) recomputes CRC32C and reports the
   match without failing the parse.
 - The CRC32C algorithm is implemented to match the kernel's `crc32c_le()`
   (`ondisk/superblock.rs`), so a "mismatch" reflects the disk, not our arithmetic.

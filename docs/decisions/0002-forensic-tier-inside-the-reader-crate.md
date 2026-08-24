@@ -25,16 +25,16 @@ that internal machinery across a crate boundary, or re-parsing the image twice.
 
 Keep the reader and the forensic operations in **one crate, `ext4fs-core`,
 exposed as two tiers of the same `Ext4Fs<R: Read + Seek>` handle**
-(`ext4fs-core/src/lib.rs`):
+(`core/src/lib.rs`):
 
 - **Tier 1 — standard access**: `read_file`, `read_dir`, `metadata`.
 - **Tier 2 — forensic operations**: the twelve modules under
-  `ext4fs-core/src/forensic/` (`deleted`, `recovery`, `journal`, `timeline`,
+  `core/src/forensic/` (`deleted`, `recovery`, `journal`, `timeline`,
   `slack`, `search`, `hash`, `history`, `dir_recovery`, `superblock_verify`,
   `carving`, `xattr`), reachable from the same handle.
 
 Fleet-wide reporting is served by a thin **`forensicnomicon::report`
-Observation adapter** — `ext4fs-core/src/forensic/findings.rs` — that surfaces
+Observation adapter** — `core/src/forensic/findings.rs` — that surfaces
 what the engine already computed as graded `EXT4-*` `Finding`s, performing no new
 parsing. This lets a `disk-forensic` / Issen orchestrator aggregate ext4 findings
 uniformly. The commit pair `e8be6fb`/`f3e6ec1` added it (RED then GREEN).
