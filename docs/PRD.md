@@ -58,7 +58,7 @@ surfaces deletion, timeline, journal, and slack evidence directly.
 `read_file(path)`, `read_dir(path)`, `metadata(path)`, superblock inspection,
 symlink following, extent-tree and indirect-block reads.
 
-**Forensic operations (tier 2)** — the modules under `ext4fs-core/src/forensic/`:
+**Forensic operations (tier 2)** — the modules under `core/src/forensic/`:
 
 | Capability | What it does |
 |---|---|

@@ -159,10 +159,10 @@
 
 **Files:**
 - Modify: `ext4fs-fuse/Cargo.toml` (add `md-5 = "0.10"`, `rusqlite = { version = "0.31", features = ["bundled"] }`)
-- Create: `ext4fs-fuse/src/filter.rs`
-- Modify: `ext4fs-fuse/src/fusefs.rs` (add evidence/ virtual dir)
-- Modify: `ext4fs-fuse/src/main.rs` (add `--filter-db` CLI arg)
-- Modify: `ext4fs-fuse/src/inode_map.rs` (add FUSE_EVIDENCE_INO constant + evidence inode namespace)
+- Create: `fuse/src/filter.rs`
+- Modify: `fuse/src/fusefs.rs` (add evidence/ virtual dir)
+- Modify: `fuse/src/main.rs` (add `--filter-db` CLI arg)
+- Modify: `fuse/src/inode_map.rs` (add FUSE_EVIDENCE_INO constant + evidence inode namespace)
 
 **Implementation:**
 

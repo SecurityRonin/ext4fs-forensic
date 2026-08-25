@@ -16,7 +16,7 @@ timezone assumption is a defensibility risk in a report.
 ## Decision
 
 Represent every timestamp as a plain `Timestamp { seconds: i64, nanoseconds:
-u32 }` value (`ext4fs-core/src/ondisk/inode.rs`), decoded by `decode_timestamp`
+u32 }` value (`core/src/ondisk/inode.rs`), decoded by `decode_timestamp`
 which sign-extends the 32-bit field when no extra word is present and applies the
 epoch-extension bits when it is. Order timestamps by `(seconds, nanoseconds)` via
 a hand-written `Ord` (no floating point). Take **no `chrono` / `time`

@@ -225,7 +225,7 @@ feat: inline data xattr overflow support for files > 60 bytes
 
 **Files:**
 - Create: `ext4fs-fuse/Cargo.toml`
-- Create: `ext4fs-fuse/src/main.rs`
+- Create: `fuse/src/main.rs`
 - Modify: `Cargo.toml` (workspace members)
 
 **Step 1: Add workspace member**
@@ -339,14 +339,14 @@ feat: ext4fs-fuse crate scaffold with CLI parser
 ### Task 5: FUSE Inode Mapping + Virtual Directory Structure
 
 **Files:**
-- Create: `ext4fs-fuse/src/inode_map.rs`
-- Create: `ext4fs-fuse/src/vfs.rs`
+- Create: `fuse/src/inode_map.rs`
+- Create: `fuse/src/vfs.rs`
 
 The FUSE filesystem needs to map between FUSE inodes (u64) and our virtual directory structure. Real ext4 inodes are offset to avoid collisions with synthetic virtual inodes.
 
 **Step 1: Write tests for inode mapping**
 
-Create `ext4fs-fuse/src/inode_map.rs`:
+Create `fuse/src/inode_map.rs`:
 
 ```rust
 #![forbid(unsafe_code)]
@@ -505,7 +505,7 @@ feat: FUSE inode mapping with namespace decode/encode
 ### Task 6: Session Manager
 
 **Files:**
-- Create: `ext4fs-fuse/src/session.rs`
+- Create: `fuse/src/session.rs`
 
 **Step 1: Write tests and implementation**
 
@@ -788,8 +788,8 @@ feat: session manager with COW overlay, hash verification, export/import
 ### Task 7: FUSE Filesystem — ro/ Read-Only Mount
 
 **Files:**
-- Create: `ext4fs-fuse/src/fusefs.rs`
-- Modify: `ext4fs-fuse/src/main.rs`
+- Create: `fuse/src/fusefs.rs`
+- Modify: `fuse/src/main.rs`
 
 This is the core FUSE implementation. Start with just the ro/ view (read-only pristine evidence).
 
@@ -845,7 +845,7 @@ feat: FUSE ro/ read-only mount with virtual directory structure
 ### Task 8: FUSE rw/ with COW Overlay
 
 **Files:**
-- Modify: `ext4fs-fuse/src/fusefs.rs`
+- Modify: `fuse/src/fusefs.rs`
 
 Add write support under `rw/`:
 - `write` — COW: on first write to an existing file, copy original data to overlay, then apply write
@@ -887,7 +887,7 @@ feat: FUSE rw/ with COW overlay, whiteouts, and session persistence
 ### Task 9: FUSE Forensic Virtual Directories
 
 **Files:**
-- Modify: `ext4fs-fuse/src/fusefs.rs`
+- Modify: `fuse/src/fusefs.rs`
 
 Add the forensic virtual directories:
 
@@ -934,7 +934,7 @@ feat: FUSE forensic virtual directories (deleted, journal, metadata, unallocated
 ### Task 10: Session Export/Import CLI
 
 **Files:**
-- Modify: `ext4fs-fuse/src/main.rs`
+- Modify: `fuse/src/main.rs`
 
 **Step 1: Wire up export/import commands**
 

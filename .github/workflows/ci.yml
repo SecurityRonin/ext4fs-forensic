@@ -29,7 +29,7 @@ jobs:
       msrv-check: test
       # The old coverage gate is NOT the fleet gate and the shared workflow
       # cannot express it: it enforced 100% lines on exactly ONE file,
-      # `*/ext4fs-core/src/vfs.rs`, and deliberately ignored every other file
+      # `*/core/src/vfs.rs`, and deliberately ignored every other file
       # ("Other modules carry pre-existing coverage debt tracked separately").
       # `coverage-scope` offers workspace|lib — there is no per-file scope — so
       # switching to the shared gate would turn a single-file gate into a
@@ -75,7 +75,7 @@ jobs:
             if [[ "$line" == SF:* ]]; then
               f="${line#SF:}"
               case "$f" in
-                */ext4fs-core/src/vfs.rs) gate=1 ;;
+                */core/src/vfs.rs) gate=1 ;;
                 *) gate=0 ;;
               esac
             elif [[ "$gate" -eq 1 && "$line" =~ ^DA:([0-9]+),0$ ]]; then

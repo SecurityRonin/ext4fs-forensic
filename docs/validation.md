@@ -87,26 +87,26 @@ the *recovery answers* are self-authored.
 
 ### Superblock parsing — Tier 2
 
-`ext4fs-core/src/ondisk/superblock.rs:479` (`parse_from_minimal_image`) parses
+`core/src/ondisk/superblock.rs:479` (`parse_from_minimal_image`) parses
 the superblock from the real `mkfs.ext4`-produced `minimal.img` and asserts
 magic `0xEF53`, 4096-byte blocks, label `test-ext4`, and the extents /
 metadata_csum / 64bit feature flags — fields written by e2fsprogs, not by us.
 
 ### Group-descriptor CRC32C — Tier 2
 
-`ext4fs-core/src/ondisk/group_desc.rs:216` (`verify_group_descriptor_checksum_on_forensic_img`)
+`core/src/ondisk/group_desc.rs:216` (`verify_group_descriptor_checksum_on_forensic_img`)
 recomputes the group-descriptor CRC32C over the on-disk bytes from `forensic.img`
 and requires it to match the checksum e2fsprogs wrote.
 
 ### Inode CRC32C — Tier 2
 
-`ext4fs-core/src/ondisk/inode.rs:481` (`verify_inode_checksum_on_forensic_img`)
+`core/src/ondisk/inode.rs:481` (`verify_inode_checksum_on_forensic_img`)
 recomputes the inode CRC32C against the value written by e2fsprogs on
 `forensic.img`.
 
 ### Deleted-inode recovery — Tier 3 (independent oracle recommended)
 
-`ext4fs-core/src/forensic/recovery.rs:176,193`
+`core/src/forensic/recovery.rs:176,193`
 (`recover_deleted_inode_21_hits_zero_size_path`,
 `recover_deleted_inode_22_hits_zero_size_path`) exercise recovery against inodes
 the generator itself deleted (`deleted-ino.txt` = 21, 22). The answer key is
@@ -114,13 +114,13 @@ self-authored. A `debugfs`/TSK differential is the recommended upgrade.
 
 ### Directory-entry (deleted filename) recovery — Tier 3
 
-`ext4fs-core/src/forensic/dir_recovery.rs:120,127` drive
+`core/src/forensic/dir_recovery.rs:120,127` drive
 `recover_dir_entries` over `forensic.img` / `minimal.img`. Ground truth is the
 file set the generator wrote; not independently confirmed.
 
 ### jbd2 journal parsing — Tier 3
 
-`ext4fs-core/src/forensic/journal.rs:269,327` parse the journal from
+`core/src/forensic/journal.rs:269,327` parse the journal from
 `minimal.img` / `forensic.img` and assert structural invariants (block size > 0,
 non-empty transactions, monotonic sequence at `:388`). The corrupt-input tests
 (`:477,520,572`) confirm malformed journals fail loudly rather than producing
@@ -199,7 +199,7 @@ Because it re-uses the engine outputs, its correctness reduces to (a) the engine
 output it adapts and (b) the mapping. The engine output is cross-checked against
 **The Sleuth Kit** (`fls`/`istat`/`fsstat`/`jls`, all installed) on the real
 `tests/data/forensic.img`; the mapping is asserted in
-`ext4fs-core/src/forensic/findings.rs` (`mod tests`).
+`core/src/forensic/findings.rs` (`mod tests`).
 
 | `EXT4-*` code | Engine module | Severity / Category | TSK oracle (Tier 2) |
 |---|---|---|---|
@@ -267,7 +267,7 @@ routes (TSK's bitmap accounting vs. our bit-run walk), so the agreement is a
 genuine cross-check, not a self-fulfilling fixture.
 
 **Test:** `unallocated_total_matches_tsk_fsstat_free_blocks` in
-`ext4fs-core/tests/vfs_ext4.rs`, env-gated on `EXT4_TIER1=1` (it skips cleanly when
+`core/tests/vfs_ext4.rs`, env-gated on `EXT4_TIER1=1` (it skips cleanly when
 unset, so it never gates line coverage; run it deliberately to reconcile against
 the oracle). Reproduce with:
 

@@ -98,7 +98,7 @@ not by an independent third party. See `docs/validation.md` for the per-capabili
   debugfs -w -R "write inl.txt inlinefile" inline.img
   ```
 
-- **Used by:** `ext4fs-core/tests/vfs_ext4.rs::meta_of_inline_file_is_resident` — proves the
+- **Used by:** `core/tests/vfs_ext4.rs::meta_of_inline_file_is_resident` — proves the
   forensic-vfs adapter reports `ResidencyKind::Resident { inline_len }` for an inline file.
 - **License / redistribution:** self-minted by this repo's Apache-2.0 build; repo-internal,
   no third-party rights. **Self-minted e2fsprogs image — NOT a real-world forensic image.**
@@ -118,7 +118,7 @@ not by an independent third party. See `docs/validation.md` for the per-capabili
   debugfs -w -R "write sf.txt afile" ext2-128.img
   ```
 
-- **Used by:** `ext4fs-core/tests/vfs_ext4.rs::meta_of_128_byte_inode_has_no_born_time` —
+- **Used by:** `core/tests/vfs_ext4.rs::meta_of_128_byte_inode_has_no_born_time` —
   proves the adapter emits `born: None` (crtime absent) and seconds resolution on a
   128-byte inode.
 - **License / redistribution:** self-minted by this repo's Apache-2.0 build; repo-internal,

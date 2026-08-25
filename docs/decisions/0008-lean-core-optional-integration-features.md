@@ -28,9 +28,9 @@ Gate integrations behind Cargo features (`ext4fs-core/Cargo.toml`):
   to avoid its license-tainted cloud transitive tree (`7beb8a1 chore(deps): lean
   blazehash-core + green cargo-deny`).
 - `ewf = ["dep:ewf"]` — optional E01/EWF source support (`Ext4Fs::open_ewf`,
-  `ext4fs-core/src/lib.rs`), added in `b7ac828`.
+  `core/src/lib.rs`), added in `b7ac828`.
 - `vfs = ["dep:forensic-vfs"]` — optional `impl FileSystem for Ext4Fs`
-  (`ext4fs-core/src/vfs.rs`) so an ext4 volume composes as `Arc<dyn FileSystem>`
+  (`core/src/vfs.rs`) so an ext4 volume composes as `Arc<dyn FileSystem>`
   in the forensic-vfs engine (`634d527`).
 
 The binary members compile the capabilities they need in; a library consumer
