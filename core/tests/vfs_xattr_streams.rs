@@ -4,8 +4,8 @@
 //! This crate has read ext4 extended attributes for a long time
 //! (`Ext4Fs::xattrs`), but nothing above `forensic-vfs` could see them: the
 //! adapter refused every non-default `StreamId`. So a consumer walking an ext4
-//! image saw files with no attributes, which on Linux silently drops SELinux
-//! labels, capabilities and POSIX ACLs.
+//! image saw files with no attributes, which on Linux silently drops
+//! `SELinux` labels, capabilities and POSIX `ACLs`.
 //!
 //! ## The oracle is e2fsprogs, not this crate
 //!
@@ -22,11 +22,13 @@
 //!
 //! ## Two distinct things are pinned here
 //!
-//! **1. Storage form.** ext4 keeps a small value in the inode body and spills a
-//! large one into a separate block pointed at by `i_file_acl`. `debugfs` reports
-//! `File ACL: 1293` for this image, so the 2000-byte value genuinely spilled.
-//! Where the bytes live is evidential, so it is reported as residency rather
-//! than flattened.
+//! **1. Storage form.** ext4 fills the inode body first and spills the rest into
+//! a separate block pointed at by `i_file_acl` — `File ACL: 1293` here. It is
+//! ORDER, not size: `security.selinux` is 36 bytes and still spilled, because
+//! it was written after the ibody filled. Verified with `debugfs inode_dump -e`
+//! (only `small` and `comment` in the inode) and a raw scan of block 1293
+//! (`big`, `marker`, `selinux`). Where the bytes live is evidential, so it is
+//! reported as residency rather than flattened.
 //!
 //! **2. Namespace.** ext4 does not store `"security.selinux"`; it stores name
 //! `"selinux"` plus a one-byte `name_index`. The full name has to be
@@ -68,10 +70,7 @@ fn id(ino: u64) -> FileId {
 }
 
 /// Collect `(name, size, residency)` for every attribute stream on `ino`.
-fn xattrs_of(
-    fs: &ext4fs::Ext4Fs<Cursor<Vec<u8>>>,
-    ino: u64,
-) -> Vec<(String, u64, ResidencyKind)> {
+fn xattrs_of(fs: &ext4fs::Ext4Fs<Cursor<Vec<u8>>>, ino: u64) -> Vec<(String, u64, ResidencyKind)> {
     fs.data_streams(id(ino))
         .expect("data_streams must not error")
         .iter()
@@ -132,10 +131,30 @@ fn residency_reports_where_the_value_actually_lives() {
         (10, ResidencyKind::Resident { inline_len: 10 }),
         "a 10-byte value lives in the inode body"
     );
+    // NOT a size threshold. This 36-byte label is SMALLER than the 2000-byte
+    // value and still landed in the block, because the ibody had already filled
+    // up. Confirmed independently before the expectation was changed:
+    // `debugfs inode_dump -e file.txt` shows only `small` and `comment` in the
+    // inode, and a raw scan of block 1293 finds `big`, `marker` and `selinux`.
+    //
+    // The first version of this test asserted Resident here on the assumption
+    // that "small value => inline". The reader disagreed and the reader was
+    // right; what ext4 does is fill the inode, then spill EVERYTHING after.
     assert_eq!(
         find("security.selinux").1,
-        ResidencyKind::Resident { inline_len: 36 },
-        "a 36-byte SELinux label still fits in the inode body"
+        ResidencyKind::NonResident,
+        "the ibody was already full, so this label went to block 1293 despite \
+         being small -- residency reports where the bytes are, not how big they are"
+    );
+    assert_eq!(
+        find("trusted.marker").1,
+        ResidencyKind::NonResident,
+        "likewise spilled: it was written after the inode body filled"
+    );
+    assert_eq!(
+        find("user.comment"),
+        (18, ResidencyKind::Resident { inline_len: 18 }),
+        "written early, so it is still in the inode body"
     );
     assert_eq!(
         find("user.big"),

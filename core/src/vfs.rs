@@ -30,8 +30,8 @@ use std::io::{Read, Seek};
 use forensic_vfs::{
     Allocation, ByteRun, DirEntry as VfsDirEntry, DirStream, ExtentStream, FileId, FileSystem,
     FsKind, FsMeta, MacbTimes, NodeKind, NodeStream, ResidencyKind, RunAlloc, RunFlags, RunInfo,
-    SectorSizes, SmallHex, StreamId, TimeResolution, TimeSource, TimeStamp, TimeZonePolicy,
-    VfsError, VfsResult,
+    SectorSizes, SmallHex, StreamId, StreamInfo, StreamKind, TimeResolution, TimeSource, TimeStamp,
+    TimeZonePolicy, VfsError, VfsResult,
 };
 
 use crate::error::Ext4Error;
@@ -231,6 +231,45 @@ fn unallocated_runs(groups: &[GroupBitmap<'_>], block_size: u64) -> Vec<ByteRun>
     out
 }
 
+/// The name to present for an attribute.
+///
+/// An unrecognised namespace index cannot be turned into a real name, so rather
+/// than invent one — or drop the attribute, which would hide evidence — it is
+/// shown as `unknown.<index>.<name>` with the raw index visible. That follows
+/// the rule for reporting anything unrecognised: show the offending value.
+fn xattr_display_name(x: &crate::forensic::Xattr) -> String {
+    x.full_name().unwrap_or_else(|| {
+        let idx = match x.namespace {
+            crate::ondisk::xattr::XattrNamespace::Unknown(i) => i,
+            // full_name() returns None only for Unknown, so this arm is
+            // unreachable; 0 is never a valid index (it terminates the list).
+            _ => 0,
+        };
+        format!("unknown.{idx}.{}", String::from_utf8_lossy(&x.name))
+    })
+}
+
+impl<R: Read + Seek> Ext4Fs<R> {
+    /// Serve `StreamId::Xattr(idx)`, indexing the list `data_streams` reported.
+    ///
+    /// The index is resolved against that same ordering, so the bytes returned
+    /// belong to the attribute the caller was shown.
+    fn read_xattr_at(&self, inode: u64, idx: u16, off: u64, buf: &mut [u8]) -> VfsResult<usize> {
+        let all = self.xattrs(inode).map_err(map_err)?;
+        let x = all.get(idx as usize).ok_or_else(|| VfsError::Unsupported {
+            layer: "ext4 xattr index",
+            scheme: format!("attribute {idx} of {} on inode {inode}", all.len()),
+        })?;
+        let start = usize::try_from(off).unwrap_or(usize::MAX);
+        if start >= x.value.len() {
+            return Ok(0);
+        }
+        let n = buf.len().min(x.value.len() - start);
+        buf[..n].copy_from_slice(&x.value[start..start + n]);
+        Ok(n)
+    }
+}
+
 impl<R: Read + Seek + Send> FileSystem for Ext4Fs<R> {
     fn kind(&self) -> FsKind {
         FsKind::EXT
@@ -375,6 +414,12 @@ impl<R: Read + Seek + Send> FileSystem for Ext4Fs<R> {
 
     fn read_at(&self, ino: FileId, stream: StreamId, off: u64, buf: &mut [u8]) -> VfsResult<usize> {
         let inode = ino_of(ino)?;
+        // Attributes are dispatched BEFORE the default-stream guard: that guard
+        // refuses stream kinds ext4 does not have, and extended attributes are
+        // a kind it does.
+        if let StreamId::Xattr(idx) = stream {
+            return self.read_xattr_at(inode, idx, off, buf);
+        }
         require_default_stream(stream)?;
         // read_inode_data_range already windows to [off, off+len) and skips
         // blocks outside it, so a huge file is never pulled wholesale.
@@ -386,6 +431,48 @@ impl<R: Read + Seek + Send> FileSystem for Ext4Fs<R> {
         let n = data.len().min(buf.len());
         buf[..n].copy_from_slice(&data[..n]);
         Ok(n)
+    }
+
+    /// The file's contents, plus one entry per extended attribute.
+    ///
+    /// Attributes are reported under the FULL name the system presents --
+    /// `security.selinux`, not the bare `selinux` ext4 stores alongside a
+    /// namespace index. An attribute whose namespace index is unrecognised is
+    /// still listed, named `unknown.<index>.<name>`, because its PRESENCE is
+    /// evidence even when its namespace cannot be resolved; silently dropping
+    /// it would be the worse error.
+    fn data_streams(&self, ino: FileId) -> VfsResult<Vec<StreamInfo>> {
+        let inode = ino_of(ino)?;
+        let size = self
+            .dir_reader
+            .inode_reader()
+            .read_inode(inode)
+            .map(|i| i.size)
+            .map_err(map_err)?;
+        let mut out = vec![StreamInfo {
+            id: StreamId::Default,
+            name: None,
+            size,
+            residency: ResidencyKind::NonResident,
+            kind: StreamKind::Data,
+        }];
+        for (i, x) in self.xattrs(inode).map_err(map_err)?.into_iter().enumerate() {
+            out.push(StreamInfo {
+                id: StreamId::Xattr(u16::try_from(i).unwrap_or(u16::MAX)),
+                name: Some(xattr_display_name(&x).into_bytes()),
+                size: x.value.len() as u64,
+                residency: match x.storage {
+                    crate::forensic::xattr::XattrStorage::Ibody => ResidencyKind::Resident {
+                        inline_len: u32::try_from(x.value.len()).unwrap_or(u32::MAX),
+                    },
+                    crate::forensic::xattr::XattrStorage::Block { .. } => {
+                        ResidencyKind::NonResident
+                    }
+                },
+                kind: StreamKind::Xattr,
+            });
+        }
+        Ok(out)
     }
 
     fn read_link(&self, ino: FileId, cap: usize) -> VfsResult<Vec<u8>> {

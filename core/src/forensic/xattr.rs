@@ -5,19 +5,106 @@ use crate::inode::InodeReader;
 use crate::ondisk::xattr::{XattrBlockHeader, XattrEntry, XattrNamespace, XATTR_MAGIC};
 use std::io::{Read, Seek};
 
+/// Where ext4 put an attribute's value.
+///
+/// A small value rides along in the inode; a large one is pushed out to a block
+/// of its own. That is a fact about where the bytes physically are, so the
+/// reader reports it rather than flattening the two.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum XattrStorage {
+    /// In the inode body, after `i_extra_isize` (the "ibody" store).
+    Ibody,
+    /// In the separate block pointed at by `i_file_acl`.
+    Block {
+        /// The block number holding the value, from `i_file_acl`.
+        block: u64,
+    },
+}
+
 /// A parsed extended attribute with its value.
 #[derive(Debug, Clone)]
 pub struct Xattr {
     pub namespace: XattrNamespace,
     pub name: Vec<u8>,
     pub value: Vec<u8>,
+    /// Which of the two stores this attribute was found in.
+    pub storage: XattrStorage,
+}
+
+impl Xattr {
+    /// The full attribute name as the system presents it — namespace prefix
+    /// plus stored name, e.g. `security.selinux` from index 6 + `selinux`.
+    ///
+    /// Returns `None` for an unrecognised namespace index: the index is shown
+    /// by the caller rather than guessed at, because a name invented here would
+    /// be reported as one the system gave.
+    #[must_use]
+    pub fn full_name(&self) -> Option<String> {
+        let prefix = self.namespace.prefix()?;
+        let mut s = String::with_capacity(prefix.len() + self.name.len());
+        s.push_str(prefix);
+        s.push_str(&String::from_utf8_lossy(&self.name));
+        Some(s)
+    }
+}
+
+/// Walk a run of `XattrEntry` records and append every attribute found.
+///
+/// The ibody and block stores use an identical entry format and differ only in
+/// where the walk starts and what `value_offset` is measured from. They were
+/// two near-identical loops; a correction to one would not have reached the
+/// other, which is the cost duplication actually charges.
+///
+/// A malformed entry ENDS the walk rather than being skipped: the records are
+/// sequential and `entry_size` is what advances the cursor, so a bad length
+/// leaves no trustworthy place to resume.
+fn collect_entries(
+    region: &[u8],
+    entry_start: usize,
+    value_base: usize,
+    storage: XattrStorage,
+    out: &mut Vec<Xattr>,
+) {
+    let mut offset = entry_start;
+    while offset + 16 <= region.len() {
+        // A zero name_length terminates the entry list.
+        if region[offset] == 0 {
+            break;
+        }
+        let Ok(entry) = XattrEntry::parse(&region[offset..]) else {
+            break;
+        };
+        let value = (entry.value_offset as usize)
+            .checked_add(value_base)
+            .and_then(|start| {
+                let end = start.checked_add(entry.value_size as usize)?;
+                region.get(start..end).map(<[u8]>::to_vec)
+            })
+            .unwrap_or_default();
+        out.push(Xattr {
+            namespace: entry.name_index,
+            name: entry.name.clone(),
+            value,
+            storage,
+        });
+        // A zero entry_size would spin forever on a corrupt record.
+        if entry.entry_size == 0 {
+            break;
+        }
+        offset += entry.entry_size;
+    }
 }
 
 /// Read extended attributes for an inode.
 ///
 /// Reads both inline xattrs stored in the inode body (ibody) and
 /// block-stored xattrs from `i_file_acl`.
-pub fn read_xattrs<R: Read + Seek>(reader: &mut InodeReader<R>, ino: u64) -> Result<Vec<Xattr>> {
+/// Takes `&InodeReader` rather than `&mut`: every call it makes
+/// (`read_inode`, `read_inode_raw`, `read_block`) is already immutable, because
+/// `BlockReader` holds its source behind a `Mutex` so one filesystem can back N
+/// workers. The exclusive borrow was never needed and blocked the
+/// `forensic-vfs` adapter, whose trait methods take `&self`.
+pub fn read_xattrs<R: Read + Seek>(reader: &InodeReader<R>, ino: u64) -> Result<Vec<Xattr>> {
     let inode = reader.read_inode(ino)?;
     let mut xattrs = Vec::new();
 
@@ -36,66 +123,35 @@ pub fn read_xattrs<R: Read + Seek>(reader: &mut InodeReader<R>, ino: u64) -> Res
                 ibody_region[3],
             ]);
             let entry_start = if magic == XATTR_MAGIC { 4 } else { 0 };
-            let mut offset = entry_start;
-            while offset + 16 <= ibody_region.len() {
-                // Zero name_index signals end of entries
-                if ibody_region[offset] == 0 {
-                    break;
-                }
-                match XattrEntry::parse(&ibody_region[offset..]) {
-                    Ok(entry) => {
-                        // For ibody xattrs, value_offset is relative to
-                        // the start of the entry area (after the magic),
-                        // so add entry_start to get the position in ibody_region.
-                        let value_start = entry.value_offset as usize + entry_start;
-                        let value_end = value_start + entry.value_size as usize;
-                        let value = if value_end <= ibody_region.len() {
-                            ibody_region[value_start..value_end].to_vec()
-                        } else {
-                            Vec::new()
-                        };
-                        xattrs.push(Xattr {
-                            namespace: entry.name_index,
-                            name: entry.name.clone(),
-                            value,
-                        });
-                        offset += entry.entry_size;
-                    }
-                    Err(_) => break,
-                }
-            }
+            // In the ibody store, value_offset is relative to the start of the
+            // entry area (just past the magic), so the value base is the same
+            // entry_start the walk begins at.
+            collect_entries(
+                ibody_region,
+                entry_start,
+                entry_start,
+                XattrStorage::Ibody,
+                &mut xattrs,
+            );
         }
     }
 
     // --- Block xattrs (from i_file_acl) ---
     if inode.file_acl != 0 {
-        let block_data = reader.block_reader_mut().read_block(inode.file_acl)?;
+        let block_data = reader.block_reader().read_block(inode.file_acl)?;
         if let Ok(_header) = XattrBlockHeader::parse(&block_data) {
-            let mut offset = 32; // skip header
-            while offset + 16 <= block_data.len() {
-                if block_data[offset] == 0 {
-                    break;
-                }
-                match XattrEntry::parse(&block_data[offset..]) {
-                    Ok(entry) => {
-                        let value_start = entry.value_offset as usize;
-                        let value_end = value_start + entry.value_size as usize;
-                        let value = if value_end <= block_data.len() {
-                            block_data[value_start..value_end].to_vec()
-                        } else {
-                            Vec::new()
-                        };
-
-                        xattrs.push(Xattr {
-                            namespace: entry.name_index,
-                            name: entry.name.clone(),
-                            value,
-                        });
-                        offset += entry.entry_size;
-                    }
-                    Err(_) => break,
-                }
-            }
+            // In the block store, entries start after the 32-byte header and
+            // value_offset is relative to the start of the BLOCK, so the value
+            // base is 0 rather than the entry start.
+            collect_entries(
+                &block_data,
+                32,
+                0,
+                XattrStorage::Block {
+                    block: inode.file_acl,
+                },
+                &mut xattrs,
+            );
         }
     }
 
@@ -118,13 +174,13 @@ mod tests {
 
     #[test]
     fn read_xattrs_from_file() {
-        let mut reader = if let Some(r) = open_minimal() {
+        let reader = if let Some(r) = open_minimal() {
             r
         } else {
             eprintln!("skip: minimal.img not found");
             return;
         };
-        let xattrs = read_xattrs(&mut reader, 2).unwrap();
+        let xattrs = read_xattrs(&reader, 2).unwrap();
         let _ = xattrs;
     }
 
@@ -137,7 +193,7 @@ mod tests {
 
     #[test]
     fn read_xattrs_for_hello_txt() {
-        let mut reader = if let Some(r) = open_forensic() {
+        let reader = if let Some(r) = open_forensic() {
             r
         } else {
             eprintln!("skip: forensic.img not found");
@@ -148,7 +204,7 @@ mod tests {
         let inode = reader.read_inode(12).unwrap();
         eprintln!("hello.txt (ino 12) file_acl = {}", inode.file_acl);
 
-        let xattrs = read_xattrs(&mut reader, 12).unwrap();
+        let xattrs = read_xattrs(&reader, 12).unwrap();
         eprintln!("xattrs found: {}", xattrs.len());
         for xa in &xattrs {
             eprintln!(
@@ -163,27 +219,27 @@ mod tests {
 
     #[test]
     fn read_xattrs_for_root_inode() {
-        let mut reader = if let Some(r) = open_forensic() {
+        let reader = if let Some(r) = open_forensic() {
             r
         } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
 
-        let xattrs = read_xattrs(&mut reader, 2).unwrap();
+        let xattrs = read_xattrs(&reader, 2).unwrap();
         let _ = xattrs;
     }
 
     #[test]
     fn read_inline_xattrs_for_hello_txt() {
-        let mut reader = if let Some(r) = open_forensic() {
+        let reader = if let Some(r) = open_forensic() {
             r
         } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
         // hello.txt is inode 12 in forensic.img
-        let xattrs = read_xattrs(&mut reader, 12).unwrap();
+        let xattrs = read_xattrs(&reader, 12).unwrap();
         let names: Vec<String> = xattrs
             .iter()
             .map(|x| String::from_utf8_lossy(&x.name).to_string())
@@ -200,13 +256,13 @@ mod tests {
 
     #[test]
     fn inline_xattr_values_are_correct() {
-        let mut reader = if let Some(r) = open_forensic() {
+        let reader = if let Some(r) = open_forensic() {
             r
         } else {
             eprintln!("skip: forensic.img not found");
             return;
         };
-        let xattrs = read_xattrs(&mut reader, 12).unwrap();
+        let xattrs = read_xattrs(&reader, 12).unwrap();
         let forensic_xattr = xattrs
             .iter()
             .find(|x| x.name == b"forensic")

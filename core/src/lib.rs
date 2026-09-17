@@ -181,8 +181,8 @@ impl<R: Read + Seek> Ext4Fs<R> {
     }
 
     /// Read block-stored extended attributes for an inode.
-    pub fn xattrs(&mut self, ino: u64) -> Result<Vec<forensic::Xattr>> {
-        forensic::xattr::read_xattrs(self.dir_reader.inode_reader_mut(), ino)
+    pub fn xattrs(&self, ino: u64) -> Result<Vec<forensic::Xattr>> {
+        forensic::xattr::read_xattrs(self.dir_reader.inode_reader(), ino)
     }
 
     /// Get all unallocated block ranges.
@@ -510,7 +510,7 @@ mod tests {
 
     #[test]
     fn xattrs_on_hello_txt() {
-        let mut fs = if let Some(f) = open_forensic() {
+        let fs = if let Some(f) = open_forensic() {
             f
         } else {
             eprintln!("skip: forensic.img not found");

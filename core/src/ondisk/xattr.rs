@@ -21,25 +21,68 @@ fn le32(buf: &[u8], off: usize) -> u32 {
 
 /// The namespace prefix index stored in each xattr entry header.
 ///
-/// Values follow the kernel ext4 definitions:
-///   1 = user, 2 = `posix_acl_access` (security), 3 = `posix_acl_default`,
-///   4 = trusted, 6 = security (LSM), 7 = system.
+/// ext4 does not store `"security.selinux"` on disk; it stores the name
+/// `"selinux"` plus this one-byte index, and the full name is reconstructed by
+/// prepending the namespace prefix. Getting the table wrong therefore RENAMES
+/// the artifact rather than merely mislabelling a field.
+///
+/// Indices 1, 4, 6 and 7 were observed directly, in bytes written by
+/// e2fsprogs, rather than recalled:
+///
+/// | attribute written | observed `name_index` |
+/// |---|---|
+/// | `user.plain` | 1 |
+/// | `trusted.thing` | 4 |
+/// | `security.selinux` | 6 |
+/// | `system.whatever` | 7 |
+///
+/// 2 and 3 are the POSIX ACL indices. They are unusual: the stored name is
+/// EMPTY and the index alone names the attribute, so their prefix is the whole
+/// name. They are carried here for completeness and are NOT covered by the
+/// fixture above — `debugfs` cannot set an ACL.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum XattrNamespace {
     User,
+    /// Index 2 — `system.posix_acl_access`, stored with an empty name.
+    PosixAclAccess,
+    /// Index 3 — `system.posix_acl_default`, stored with an empty name.
+    PosixAclDefault,
     Security,
     Trusted,
     System,
     Unknown(u8),
 }
 
+impl XattrNamespace {
+    /// The text prepended to the stored name to form the full attribute name.
+    ///
+    /// An unknown index yields `None`: a name cannot be reconstructed without
+    /// knowing its namespace, and inventing one would report an attribute under
+    /// a name the system never gave it.
+    #[must_use]
+    pub fn prefix(self) -> Option<&'static str> {
+        match self {
+            Self::User => Some("user."),
+            // The ACL indices carry no stored name, so the prefix IS the name.
+            Self::PosixAclAccess => Some("system.posix_acl_access"),
+            Self::PosixAclDefault => Some("system.posix_acl_default"),
+            Self::Security => Some("security."),
+            Self::Trusted => Some("trusted."),
+            Self::System => Some("system."),
+            Self::Unknown(_) => None,
+        }
+    }
+}
+
 impl From<u8> for XattrNamespace {
     fn from(v: u8) -> Self {
         match v {
             1 => XattrNamespace::User,
-            2 | 3 => XattrNamespace::Security,
+            2 => XattrNamespace::PosixAclAccess,
+            3 => XattrNamespace::PosixAclDefault,
             4 => XattrNamespace::Trusted,
-            6 | 7 => XattrNamespace::System,
+            6 => XattrNamespace::Security,
+            7 => XattrNamespace::System,
             other => XattrNamespace::Unknown(other),
         }
     }
