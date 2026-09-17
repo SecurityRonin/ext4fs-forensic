@@ -12,6 +12,11 @@ license.workspace = true
 name = "ext4fs"
 path = "src/lib.rs"
 
+[dev-dependencies]
+# Fixtures with a mostly-zero 16 MB image compress ~1000:1; decompressing
+# in-process keeps the repo small without a second copy on disk.
+flate2 = "1"
+
 [features]
 default = ["hashing"]
 ewf = ["dep:ewf"]
@@ -37,3 +42,7 @@ forensic-vfs = { version = "0.7", optional = true }
 
 [lints]
 workspace = true
+
+[[test]]
+name = "vfs_xattr_streams"
+required-features = ["vfs"]

@@ -830,6 +830,7 @@ dependencies = [
  "blazehash-core",
  "crc",
  "ewf",
+ "flate2",
  "forensic-vfs",
  "forensicnomicon",
  "safe-read 0.1.0",
