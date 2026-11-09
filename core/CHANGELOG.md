@@ -5,6 +5,24 @@ documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0](https://github.com/SecurityRonin/ext4fs-forensic/compare/ext4fs-core-v0.2.8...ext4fs-core-v0.3.0) - 2026-11-09
+
+### Added
+
+- *(vfs)* GREEN - ext4 attributes as streams, and fix the namespace table
+
+### Build
+
+- *(deps)* [**breaking**] require published forensic-vfs 0.10, drop the sibling patch
+
+### Fixed
+
+- *(symlink)* use the kernel's fast-link boundary, refuse oversize targets
+
+### Other
+
+- require forensic-vfs 0.9
+
 ## [0.2.7](https://github.com/SecurityRonin/ext4fs-forensic/compare/ext4fs-core-v0.2.6...ext4fs-core-v0.2.7) - 2026-07-24
 
 ### Fixed
