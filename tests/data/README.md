@@ -133,6 +133,8 @@ not by an independent third party. See `docs/validation.md` for the per-capabili
 | `deleted-ino.txt` | 6 | `6cf8c3f94aac46bfc22821c9b1ef86dd` |
 | `inline.img` | 1048576 | `70b54a304d67fdf2d175d004ff3b2060` |
 | `ext2-128.img` | 524288 | `e62803f6f3969a954dcbdda63810b372` |
+| `ext2_symlinks.img` | 262144 | `f3e07dee45f5b9c2185840a4aa68690e` |
+| `ext4_symlinks.img` | 262144 | `49b627e6f80c0122ad097c58d17c05a3` |
 
 #### ext4_xattr.img.gz
 
@@ -193,3 +195,41 @@ not by an independent third party. See `docs/validation.md` for the per-capabili
 - **MD5 (gz):** `6731ab58dcc33671897ac1a9e9edbf79`
 - **MD5 (raw):** `de1492bd63c341f800c66b388b0b823e`
 - **Used by:** `core/tests/vfs_xattr_streams.rs`
+
+#### ext2_symlinks.img, ext4_symlinks.img
+
+- **Source / Identity:** self-minted on Linux (asgard), 2026-11-09, with
+  e2fsprogs `mke2fs -d` from one source directory (no mount, no root). Block
+  size 4096; 256 KiB each. `ext2_symlinks.img` has no extents, so slow
+  symlinks use block pointers; `ext4_symlinks.img` is ext4 without a journal,
+  so slow symlinks use extents.
+- **Classification:** **Synthetic** (self-minted). Oracle: the source
+  directory's `readlink`, independent of e2fsprogs and of this crate.
+  `debugfs -R "stat /linkN"` confirms the fast/slow split and `e2fsck -fn`
+  is clean on both.
+- **Contents:** four symlinks whose targets are `t/` repeated and cut to 59,
+  60, 61 and 2000 bytes (`link59`, `link60`, `link61`, `link2000`). They sit
+  either side of the kernel's fast-symlink boundary: a target is stored in
+  `i_block` only when it and its NUL fit 60 bytes (`i_size < 60`,
+  fs/ext4/namei.c and ext2's `ext2_symlink`), so `link59` is the only fast
+  link. `link2000` is inode 12 at byte 142080 of `ext4_symlinks.img`
+  (`debugfs -R "imap /link2000"`: block 34, offset 0xb00).
+- **Why minted:** `forensic.img`'s symlinks are all short, and no fixture had
+  a 60-byte target, so nothing exercised the boundary; on ext2 the reader
+  returned `link60`'s block pointers as its target.
+- **Generator (verbatim):**
+
+  ```bash
+  mkdir root
+  for n in 59 60 61 2000; do
+    ln -s "$(python3 -c "print(('t/'*$n)[:$n])")" root/link$n
+  done
+  mke2fs -q -t ext2 -b 4096 -N 16 -m 0 -d root -L e2sym ext2_symlinks.img 256K
+  mke2fs -q -t ext4 -O ^has_journal -b 4096 -N 16 -m 0 -d root -L e4sym ext4_symlinks.img 256K
+  ```
+
+- **Tool:** `mke2fs 1.47.0` (e2fsprogs).
+- **SHA-256:** `f304a09de695a24339f3b8581cab4f8ad585d42f2708336619000ab04049c943`
+  (ext2), `4c8d117ef1263bb9914ce4b842b086e57d89898400657e49f7d34b7be0d9d464` (ext4).
+- **Redistribution:** none; self-minted, no third-party data.
+- **Used by:** `core/tests/symlinks.rs`.
