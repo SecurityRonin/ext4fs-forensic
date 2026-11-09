@@ -8,7 +8,8 @@
 //! conclusion.
 //!
 //! The reader surface is re-exported, so `ext4fs_forensic::` resolves the reader
-//! types too.
+//! types too. That makes `ext4fs-core` a public dependency of this crate: moving
+//! to an incompatible `ext4fs-core` changes this crate's API as well.
 #![forbid(unsafe_code)]
 
 pub use ext4fs::*;
