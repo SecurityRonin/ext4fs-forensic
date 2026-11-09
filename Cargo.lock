@@ -813,27 +813,13 @@ dependencies = [
 
 [[package]]
 name = "ext4fs-cli"
-version = "0.2.8"
+version = "0.3.0"
 dependencies = [
  "clap",
- "ext4fs-core 0.2.8",
+ "ext4fs-core 0.3.0",
  "serde",
  "serde_json",
  "uuid",
-]
-
-[[package]]
-name = "ext4fs-core"
-version = "0.2.8"
-dependencies = [
- "bitflags 2.13.1",
- "blazehash-core",
- "crc",
- "ewf",
- "flate2",
- "forensic-vfs 0.10.0",
- "forensicnomicon",
- "safe-read 0.1.0",
 ]
 
 [[package]]
@@ -851,19 +837,33 @@ dependencies = [
 ]
 
 [[package]]
-name = "ext4fs-forensic"
-version = "0.2.8"
+name = "ext4fs-core"
+version = "0.3.0"
 dependencies = [
- "ext4fs-core 0.2.8",
+ "bitflags 2.13.1",
+ "blazehash-core",
+ "crc",
+ "ewf",
+ "flate2",
+ "forensic-vfs 0.10.0",
+ "forensicnomicon",
+ "safe-read 0.1.0",
+]
+
+[[package]]
+name = "ext4fs-forensic"
+version = "0.3.0"
+dependencies = [
+ "ext4fs-core 0.3.0",
  "forensicnomicon",
 ]
 
 [[package]]
 name = "ext4fs-fuse"
-version = "0.2.8"
+version = "0.3.0"
 dependencies = [
  "clap",
- "ext4fs-core 0.2.8",
+ "ext4fs-core 0.3.0",
  "forensic-mount",
  "serde_json",
 ]
@@ -1006,7 +1006,7 @@ dependencies = [
  "dar-core",
  "dmg-core",
  "ewf",
- "ext4fs-core 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ext4fs-core 0.2.8",
  "fat-core",
  "filevault-core",
  "forensic-vfs 0.7.2",
