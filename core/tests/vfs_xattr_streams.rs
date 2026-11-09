@@ -224,3 +224,59 @@ fn the_default_data_stream_is_still_reported() {
         "the data stream must not be displaced by the attributes: {streams:?}"
     );
 }
+
+/// An attribute index past the list, and an offset past a value, are told
+/// apart: the first is an error naming the index and the count, the second
+/// reads zero bytes.
+#[test]
+fn read_at_refuses_an_unknown_index_and_reads_nothing_past_a_value() {
+    let fs = fs();
+    let streams = fs.data_streams(id(FILE_INO)).unwrap();
+    let count = streams
+        .iter()
+        .filter(|s| s.kind == StreamKind::Xattr)
+        .count();
+    let mut buf = [0u8; 16];
+    let err = fs
+        .read_at(id(FILE_INO), StreamId::Xattr(99), 0, &mut buf)
+        .expect_err("there is no attribute 99");
+    assert!(
+        err.to_string()
+            .contains(&format!("attribute 99 of {count}")),
+        "{err}"
+    );
+    let small = streams
+        .iter()
+        .find(|s| s.name.as_deref() == Some(b"user.small".as_slice()))
+        .expect("user.small");
+    let past = small.size + 1;
+    assert_eq!(
+        fs.read_at(id(FILE_INO), small.id, past, &mut buf).unwrap(),
+        0
+    );
+}
+
+/// A namespace index the reader does not know is shown, not dropped or renamed:
+/// `unknown.<index>.<name>`. The fixture's `user.small` entry (namespace 1) is
+/// relabelled to index 9, which ext4 does not define.
+#[test]
+fn an_unknown_namespace_is_named_with_its_raw_index() {
+    // ext4_xattr_entry: name_len(1) name_index(1) value_offs(2) value_inum(4)
+    // value_size(4) hash(4), then the name. Find the one entry named "small".
+    let mut img = image();
+    let hits: Vec<usize> = img
+        .windows(5)
+        .enumerate()
+        .filter(|(i, w)| *w == b"small" && *i >= 16 && img[i - 16] == 5 && img[i - 15] == 1)
+        .map(|(i, _)| i - 15)
+        .collect();
+    assert_eq!(hits.len(), 1, "exactly one user.small entry: {hits:?}");
+    img[hits[0]] = 9;
+    let fs = ext4fs::Ext4Fs::open(Cursor::new(img)).expect("open");
+    let names: Vec<String> = xattrs_of(&fs, FILE_INO)
+        .into_iter()
+        .map(|(n, _, _)| n)
+        .collect();
+    assert!(names.contains(&"unknown.9.small".to_string()), "{names:?}");
+    assert!(!names.contains(&"user.small".to_string()), "{names:?}");
+}

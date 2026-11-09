@@ -241,9 +241,8 @@ fn xattr_display_name(x: &crate::forensic::Xattr) -> String {
     x.full_name().unwrap_or_else(|| {
         let idx = match x.namespace {
             crate::ondisk::xattr::XattrNamespace::Unknown(i) => i,
-            // full_name() returns None only for Unknown, so this arm is
-            // unreachable; 0 is never a valid index (it terminates the list).
-            _ => 0,
+            // 0 is never a valid index (it terminates the list).
+            _ => 0, // cov:unreachable: full_name() is None only when prefix() is, i.e. only for Unknown
         };
         format!("unknown.{idx}.{}", String::from_utf8_lossy(&x.name))
     })
