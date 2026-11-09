@@ -22,6 +22,9 @@ audit-as-crates-io = false
 [policy."ext4fs-core:0.2.8"]
 audit-as-crates-io = false
 
+[policy.ext4fs-forensic]
+audit-as-crates-io = false
+
 [policy.ext4fs-fuse]
 audit-as-crates-io = false
 
