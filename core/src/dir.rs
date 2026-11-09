@@ -165,19 +165,34 @@ impl<R: Read + Seek> DirReader<R> {
 
     /// Read the target of a symlink inode.
     ///
-    /// For short symlinks (size <= 60 and no extents), the path is stored
-    /// inline in `i_block`. Otherwise it is read from the data blocks.
+    /// A target is stored in `i_block` (a "fast" symlink) only when it and its
+    /// NUL fit the 60-byte field, i.e. `i_size < 60` (fs/ext4/namei.c:
+    /// `disk_link.len > EXT4_N_BLOCKS * 4` selects a data block; ext2 is the
+    /// same). Otherwise it is in the first data block, and the kernel never
+    /// creates or reads one of a block or more, so a larger `i_size` is refused
+    /// before it sizes any read.
     pub fn read_link(&self, ino: u64) -> Result<Vec<u8>> {
         let inode = self.inode_reader.read_inode(ino)?;
         if inode.file_type() != FileType::Symlink {
             return Err(Ext4Error::NotASymlink(format!("inode {ino}")));
         }
-        // Inline symlink: size <= 60 and not using extents.
-        if inode.size <= 60 && !inode.uses_extents() {
+        // A fast symlink clears the extents flag when it is created.
+        if inode.size < 60 && !inode.uses_extents() {
             let len = inode.size as usize;
             return Ok(inode.i_block[..len].to_vec());
         }
-        // Data-block symlink.
+        let block_size = self.inode_reader.block_reader().block_size();
+        if inode.size >= u64::from(block_size) {
+            return Err(Ext4Error::CorruptMetadata {
+                structure: "symlink inode",
+                detail: format!(
+                    "inode {ino} declares a {} byte target; a symlink must be shorter than \
+                     one {block_size} byte block (fs/ext4/namei.c)",
+                    inode.size
+                ),
+            });
+        }
+        // Data-block symlink: `i_size` is below one block, so this reads one.
         let data = self.inode_reader.read_inode_data(ino)?;
         Ok(data)
     }
